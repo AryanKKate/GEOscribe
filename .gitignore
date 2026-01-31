@@ -1,5 +1,18 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Virtual environment
+venv/
+env/
+__pycache__/
+*.py[cod]
 
+# AI/ML Weights (Keep these out of GitHub!)
+*.pth
+*.pt
+*.h5
+models/weights/
+
+# Environment variables (API Keys, Secrets)
+.env
 # dependencies
 /node_modules
 /.pnp
