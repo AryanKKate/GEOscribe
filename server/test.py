@@ -1,71 +1,71 @@
 import requests
 import json
 
-BASE_URL = "http://127.0.0.1:5000"
+FLASK_BASE = "http://127.0.0.1:5000"
 
-QUERY = "Who is Ajit Pawar"
-COMPETITOR_URLS = [
-    "https://en.wikipedia.org/wiki/Ajit_Pawar"
+# --------------------
+# Step 1: Ask AI for answer
+# --------------------
+query = "WHo is Ajit Pawar"
+
+ask_payload = {"query": query}
+
+try:
+    resp = requests.post(f"{FLASK_BASE}/ask", json=ask_payload)
+    resp.raise_for_status()
+    ai_answer = resp.json()["raw_answer"]
+    print("✅ AI Answer generated.")
+except Exception as e:
+    print(f"Failed to get AI answer: {e}")
+    exit(1)
+
+# --------------------
+# Step 2: Collect competitor structure
+# --------------------
+competitor_urls = [
+"https://en.wikipedia.org/wiki/Ajit_Pawar"
 ]
 
-# -----------------------------
-# STEP 1: ASK (AI Answer)
-# -----------------------------
-print("\n[1] Calling /ask ...")
+collect_payload = {"urls": competitor_urls}
 
-ask_res = requests.post(
-    f"{BASE_URL}/ask",
-    json={"query": QUERY}
-)
+try:
+    resp = requests.post(f"{FLASK_BASE}/collect-structure", json=collect_payload)
+    resp.raise_for_status()
+    collect_results = resp.json()["results"]
 
-ask_res.raise_for_status()
-ask_data = ask_res.json()
+    competitors = []
+    for comp in collect_results:
+        if "error" in comp:
+            print(f"⚠ Error collecting {comp['url']}: {comp['error']}")
+            continue
+        competitors.append({
+            "url": comp["url"],
+            "content_id": comp["content_id"],
+            "structure_fingerprint": comp["structure_fingerprint"]
+        })
 
-ai_answer = ask_data["raw_answer"]
-print("✔ AI answer received")
+    if not competitors:
+        print("No valid competitors scraped.")
+        exit(1)
+    print("✅ Competitor structure collected.")
 
-# -----------------------------
-# STEP 2: COLLECT STRUCTURE
-# -----------------------------
-print("\n[2] Calling /collect-structure ...")
+except Exception as e:
+    print(f"Failed to collect competitor structure: {e}")
+    exit(1)
 
-collect_res = requests.post(
-    f"{BASE_URL}/collect-structure",
-    json={"urls": COMPETITOR_URLS}
-)
-
-collect_res.raise_for_status()
-collect_data = collect_res.json()
-
-competitors = []
-for result in collect_data["results"]:
-  competitors.append({
-    "url": result["url"],
-    "content_id": result["content_id"],
-    "structure_fingerprint": result["structure_fingerprint"]
-})
-
-
-
-print(f"✔ Collected structure for {len(competitors)} competitors")
-
-# -----------------------------
-# STEP 3: GEO EVALUATION
-# -----------------------------
-print("\n[3] Calling /geo-evaluate ...")
-
-geo_payload = {
+# --------------------
+# Step 3: Request GEO recommendations
+# --------------------
+recommendation_payload = {
     "ai_answer": ai_answer,
     "competitors": competitors
 }
 
-geo_res = requests.post(
-    f"{BASE_URL}/geo-evaluate",
-    json=geo_payload
-)
-
-geo_res.raise_for_status()
-geo_data = geo_res.json()
-
-print("\n✅ GEO Evaluation Result:\n")
-print(json.dumps(geo_data, indent=2))
+try:
+    resp = requests.post(f"{FLASK_BASE}/geo-recommendations", json=recommendation_payload)
+    resp.raise_for_status()
+    recommendations = resp.json()
+    print("✅ GEO Recommendations received:")
+    print(json.dumps(recommendations, indent=2))
+except Exception as e:
+    print(f"Failed to get GEO recommendations: {e}")
