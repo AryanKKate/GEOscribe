@@ -1,54 +1,61 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-# Virtual environment
-venv/
-env/
-__pycache__/
-*.py[cod]
+# ==========================================
+# 1. Server-Side / Flask (server/ folder)
+# ==========================================
+# Virtual environments
+server/venv/
+server/env/
+server/ENV/
 
-# AI/ML Weights (Keep these out of GitHub!)
-*.pth
-*.pt
-*.h5
-models/weights/
+# Python bytecode & cache
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
 
-# Environment variables (API Keys, Secrets)
+# AI Model Weights (Essential for VisioNiX)
+# Prevents large .pt (PyTorch) or .h5 (Keras) files from bloating Git
+server/models/*.pt
+server/models/*.pth
+server/models/*.h5
+server/weights/
+
+# Local uploads/logs
+server/uploads/
+server/logs/
+
+
+# ==========================================
+# 2. Client-Side / Next.js (client/ folder)
+# ==========================================
+# Dependencies
+client/node_modules/
+
+# Next.js build output
+client/.next/
+client/out/
+client/build/
+
+# Frontend logs
+client/npm-debug.log*
+client/yarn-error.log*
+
+
+# ==========================================
+# 3. Security & Secrets (Global)
+# ==========================================
+# Never commit your Supabase or LLM keys!
 .env
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+.env.local
+.env.development.local
+.env.production.local
+**/.env*
 
-# testing
-/coverage
 
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
+# ==========================================
+# 4. System & Editor Files
+# ==========================================
 .DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+Thumbs.db
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
