@@ -12,6 +12,10 @@ from collections import Counter
 from sklearn.cluster import KMeans
 from keybert import KeyBERT
 import math
+from langgraph.graph import StateGraph
+from langchain_core.messages import HumanMessage
+
+from langchain_groq import ChatGroq
 
 # --------------------
 # Initialization
@@ -278,113 +282,111 @@ def geo_evaluate_reused():
     }), 200
 
 # =========================================================
-# NLP PREPROCESSING UTILITIES FOR LLM RECOMMENDATIONS
+# BUILDING THE GEO AGENT WITH LANGGRAPH
+
+
+class GEOState(dict):
+    pass
+
+
+def node_ai_answer(state: GEOState):
+    r = requests.post("http://127.0.0.1:5000/ask", json={"query": state["query"]})
+    state["ai_answer"] = r.json()["raw_answer"]
+    return state
+
+
+def node_extract_refs(state: GEOState):
+    urls = re.findall(r"https?://[^\s,\]]+", state["ai_answer"])
+    state["urls"] = list(set(urls))
+    return state
+
+
+def node_collect_structure(state: GEOState):
+    if not state["urls"]:
+        state["competitors"] = []
+        return state
+
+    r = requests.post("http://127.0.0.1:5000/collect-structure", json={"urls": state["urls"]})
+    state["competitors"] = r.json()["results"]
+    return state
+
+
+def node_causal_reasoning(state: GEOState):
+    prompt = f"""
+AI Answer:
+{state["ai_answer"][:3000]}
+
+Competitor structures:
+{json.dumps(state["competitors"], indent=2)[:4000]}
+
+Explain WHY these pages were selected by a generative AI.
+Focus on structure, clarity, sections, bullets, definitions.
+
+Return JSON.
+"""
+    res = geo_llm.invoke([HumanMessage(content=prompt)])
+    state["causal_analysis"] = res.content
+    return state
+
+
+def node_recommendations(state: GEOState):
+    prompt = f"""
+Causal Analysis:
+{state["causal_analysis"]}
+
+What should OUR website add or improve to be reused by AI engines?
+Focus on:
+- Missing sections
+- Content formats
+- Structural improvements
+
+Return JSON.
+"""
+    res = geo_llm.invoke([HumanMessage(content=prompt)])
+    state["recommendations"] = res.content
+    return state
+
+
+def build_geo_agent():
+    g = StateGraph(GEOState)
+    g.add_node("ai", node_ai_answer)
+    g.add_node("refs", node_extract_refs)
+    g.add_node("struct", node_collect_structure)
+    g.add_node("cause", node_causal_reasoning)
+    g.add_node("reco", node_recommendations)
+
+    g.set_entry_point("ai")
+    g.add_edge("ai", "refs")
+    g.add_edge("refs", "struct")
+    g.add_edge("struct", "cause")
+    g.add_edge("cause", "reco")
+
+    return g.compile()
+
+
+geo_agent = build_geo_agent()
+
+# =========================================================
+# 🚀 NEW ENDPOINT — /geo-agent
 # =========================================================
 
-def clean_text(text):
-    return re.sub(r"\s+", " ", text).strip()
+@app.route("/geo-agent", methods=["POST"])
+def geo_agent_endpoint():
+    data = request.get_json()
+    query = data.get("query")
 
-def summarize_answer(answer, max_words=300):
-    if len(answer.split()) <= max_words:
-        return answer
-    # Use Groq LLM for summarization if needed
-    completion = groq_client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[{"role": "user", "content": f"Summarize this text in under {max_words} words:\n{answer}"}]
-    )
-    return completion.choices[0].message.content
+    if not query:
+        return jsonify({"error": "query required"}), 400
 
-def cluster_answer_sentences(answer, n_clusters=5):
-    sentences = re.split(r'(?<=[.!?]) +', answer)
-    embeddings = semantic_model.encode(sentences)
-    kmeans = KMeans(n_clusters=min(n_clusters, len(sentences)), random_state=42)
-    labels = kmeans.fit_predict(embeddings)
-    clustered = []
-    for i in range(max(labels)+1):
-        idxs = [j for j, l in enumerate(labels) if l == i]
-        representative = sentences[idxs[0]]
-        clustered.append(representative)
-    return clustered
+    result = geo_agent.invoke({"query": query+" Give urls of the websites you used to answer."})
 
-def highlight_weak_topics(answer, competitor_topics):
-    weak = topics_weak(answer, competitor_topics)
-    if weak:
-        return answer + "\n\n# Weakly covered topics: " + ", ".join(weak)
-    return answer
-
-# =========================================================
-# NEW ENDPOINT: GEO RECOMMENDATIONS
-# =========================================================
-
-def parse_llm_json(llm_text):
-    """
-    Extracts JSON from LLM output even if wrapped in ```json ... ```
-    """
-    # Remove code fences if present
-    llm_text = re.sub(r"```json|```", "", llm_text, flags=re.IGNORECASE).strip()
-    try:
-        return json.loads(llm_text)
-    except json.JSONDecodeError as e:
-        # fallback: return raw text if parsing fails
-        return {"raw_text": llm_text, "error": str(e)}
-
-@app.route('/geo-recommendations', methods=['POST'])
-def geo_recommendations():
-    data = request.get_json(force=True)
-    ai_answer = data.get("ai_answer")
-    competitors = data.get("competitors")
-    if not ai_answer or not competitors:
-        return jsonify({"error": "ai_answer and competitors required"}), 400
-
-    recommendations = []
-
-    for comp in competitors:
-        try:
-            url = comp["url"]
-            content_id = comp["content_id"]
-            markdown = SCRAPED_CONTENT_CACHE.get(content_id, "")
-            comp_structure = comp.get("structure_fingerprint")
-            comp_topics = extract_topics_from_structure(comp_structure)
-
-            # NLP preprocessing on AI answer
-            processed_answer = clean_text(ai_answer)
-            processed_answer = summarize_answer(processed_answer)
-            processed_answer = " ".join(cluster_answer_sentences(processed_answer))
-            processed_answer = highlight_weak_topics(processed_answer, comp_topics)
-
-            prompt = f"""
-            You are a GEO optimization assistant.
-            Website content:
-            {markdown[:4000]}
-
-            AI-generated answer:
-            {processed_answer[:4000]}
-
-            Competitor topics:
-            {', '.join(comp_topics)}
-
-            Provide structured recommendations for this website to improve:
-            1. Missing Sections or Concepts
-            2. Recommended Content Formats (FAQ, Steps, Glossary)
-            3. Structural Improvements (headings, bullets, summaries)
-            Explain why each recommendation is helpful for generative AI.
-            Return output as JSON with keys: type, details, why.
-            """
-
-            completion = groq_client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            recommendation_json = completion.choices[0].message.content
-            parsed_recommendations = parse_llm_json(recommendation_json)
-
-            recommendations.append({"url": url, "recommendations": parsed_recommendations})
-
-        except Exception as e:
-            recommendations.append({"url": comp.get("url"), "error": str(e)})
-
-    return jsonify({"status": "success", "recommendations": recommendations, "timestamp": datetime.utcnow().isoformat()}), 200
+    return jsonify({
+        "query": query,
+        "ai_answer": result["ai_answer"],
+        "referenced_urls": result["urls"],
+        "causal_analysis": result["causal_analysis"],
+        "recommendations": result["recommendations"]
+    }), 200
 
 # =========================================================
 # RUN SERVER
