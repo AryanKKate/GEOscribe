@@ -1,24 +1,24 @@
 import requests
-import json
 
-# 1️⃣ API endpoint
-url = "http://127.0.0.1:5000/collect-structure"
+url = "http://127.0.0.1:5000/geo-metrics"
 
-# 2️⃣ JSON body (single URL)
+ai_answer = """
+Ajit Pawar is an Indian politician and senior leader of the Nationalist Congress Party.
+He has served multiple times as the Deputy Chief Minister of Maharashtra.
+He is known for his influence in state politics and his role in the 2023 NCP split.
+"""
+
 payload = {
-    "urls": "https://en.wikipedia.org/wiki/Ajit_Pawar"
+    "ai_answer": ai_answer,
+    "urls": [
+        "https://en.wikipedia.org/wiki/Ajit_Pawar"
+    ]
 }
 
-# 3️⃣ Headers
-headers = {
-    "Content-Type": "application/json"
-}
+response = requests.post(url, json=payload)
 
-# 4️⃣ POST request
-response = requests.post(url, json=payload, headers=headers)
-
-# 5️⃣ Parse JSON
+print("Status Code:", response.status_code)
 data = response.json()
 
-# 6️⃣ Pretty print
-print(json.dumps(data, indent=4))
+print("\n=== GEO METRICS ===")
+print(data)
