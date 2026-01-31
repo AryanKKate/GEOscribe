@@ -209,6 +209,46 @@ def collect_structure():
 
 semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
 
+def get_ai_answer(query):
+    """Logic from your /ask route"""
+    completion = groq_client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": query}]
+    )
+    return completion.choices[0].message.content
+def get_competitor_data(urls):
+    """Core logic extracted from /collect-structure"""
+    results = []
+    
+    if isinstance(urls, str):
+        urls = [urls]
+
+    for url in urls:
+        try:
+            # Reusing your Firecrawl scraper
+            markdown = firecrawl_scrape(url)
+            content_id = f"{url}_{int(datetime.utcnow().timestamp())}"
+
+            # Updating your global cache
+            SCRAPED_CONTENT_CACHE[content_id] = markdown
+            
+            # Reusing your structure extractor
+            structure = extract_structure(markdown)
+
+            results.append({
+                "url": url,
+                "content_id": content_id,
+                "structure_fingerprint": structure,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        except Exception as e:
+            results.append({
+                "url": url, 
+                "error": str(e)
+            })
+    return results
+
+
 def semantic_score(text_a: str, text_b: str) -> float:
     embeddings = semantic_model.encode([text_a, text_b])
     a, b = embeddings[0], embeddings[1]
@@ -297,20 +337,26 @@ def structural_preferences(ai_struct, comp_structs):
 
 
 @app.route('/geo-evaluate', methods=['POST'])
-def geo_evaluate_reused():
+def geo_evaluate():
     data = request.get_json(force=True)
+    
+    query = data.get("query")
+    urls = data.get("urls") # Expected list: ["url1", "url2"]
 
-    ai_answer = data.get("ai_answer")
-    competitors = data.get("competitors")
+    if not query or not urls:
+        return jsonify({"error": "query and urls are required"}), 400
 
-    if not ai_answer or not competitors:
-        return jsonify({
-            "error": "ai_answer and competitors required"
-        }), 400
+    if isinstance(urls, str):
+        urls = [urls]
 
+    # 1. Get the AI Answer internally (instead of passing it in)
+    ai_answer = get_ai_answer(query)
+
+    # 2. Get Competitor Structures internally
+    competitors = get_competitor_data(urls)
+
+    # --- Start Evaluation Logic (Reused from your snippet) ---
     ai_structure = extract_structure(ai_answer)
-    ai_topics = extract_topics_from_text(ai_answer)
-
     results = []
     competitor_structures = []
 
@@ -319,7 +365,6 @@ def geo_evaluate_reused():
             url = comp["url"]
             content_id = comp["content_id"]
             markdown = SCRAPED_CONTENT_CACHE.get(content_id, "")
-
             comp_structure = comp.get("structure_fingerprint")
             competitor_structures.append(comp_structure)
 
@@ -328,42 +373,22 @@ def geo_evaluate_reused():
             evaluation = {
                 "url": url,
                 "semantic_score": semantic_score(ai_answer, markdown),
-                "pawc": pawc(ai_answer, markdown),
-                "raw_word_coverage": raw_word_coverage(ai_answer, markdown),
                 "citation_frequency": citation_frequency(ai_answer, url),
-                "structural_depth": {
-                    "ai": ai_structure["metrics"],
-                    "competitor": comp_structure["metrics"],
-                    "difference": structural_depth_diff(
-                        ai_structure,
-                        comp_structure
-                    )
-                },
                 "topic_analysis": {
                     "included_topics": topics_included(ai_answer, comp_topics),
-                    "missing_topics": topics_missing(ai_answer, comp_topics),
-                    "weak_topics": topics_weak(ai_answer, comp_topics)
+                    "missing_topics": topics_missing(ai_answer, comp_topics)
                 }
             }
-
             results.append(evaluation)
-
         except Exception as e:
-            results.append({
-                "url": comp.get("url"),
-                "error": str(e)
-            })
+            results.append({"url": comp.get("url"), "error": str(e)})
 
     return jsonify({
         "status": "success",
+        "ai_answer_used": ai_answer,
         "geo_metrics": results,
-        "structural_preferences": structural_preferences(
-            ai_structure,
-            competitor_structures
-        ),
         "timestamp": datetime.utcnow().isoformat()
     }), 200
-
 
 
 # =========================================================

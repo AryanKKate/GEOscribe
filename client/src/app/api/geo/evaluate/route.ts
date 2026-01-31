@@ -1,56 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 
-/**
- * GEO Metrics API - Step 4 of the GEO Platform
- * 
- * This API endpoint fetches GEO metrics from the Flask backend.
- * It calls the /geo-metrics endpoint which computes:
- * - Semantic score (AI vs competitor content similarity)
- * - PAWC (Percentage AI Word Coverage)
- * - Raw word coverage
- * - Citation frequency
- * - Structural depth comparison (AI vs competitor)
- * - Topic analysis (included, missing, weak topics)
- * - Structural preferences
- */
-
-// Flask backend URL
 const FLASK_BACKEND_URL = process.env.FLASK_BACKEND_URL || "http://localhost:5000";
 
-/**
- * POST /api/geo/metrics
- * 
- * Fetches GEO metrics by sending query and competitor URL to Flask backend
- * 
- * Request Body:
- * - query: The user query that was sent to AI
- * - url: The competitor URL to compare against
- * 
- * Returns:
- * - geo_metrics: Array of metric objects per URL
- * - structural_preferences: Overall structural preferences
- * - timestamp: When the analysis was performed
- */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { query, url } = body;
+    // 1. Change 'url' to 'urls' to match what the Frontend is sending
+    const { query, urls } = body;
 
-    // Validate parameters
-    if (!query || !url) {
+    // 2. Validate using the correct plural key
+    if (!query || !urls) {
       return NextResponse.json(
-        { error: "Missing required parameters: query and url" },
+        { error: "Missing required parameters: query and urls" },
         { status: 400 }
       );
     }
 
-    // Call Flask backend /geo-metrics endpoint
+    // 3. Call Flask backend /geo-evaluate
     const flaskResponse = await fetch(`${FLASK_BACKEND_URL}/geo-evaluate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ query, url }),
+      // 4. Forward as 'urls' to Flask
+      body: JSON.stringify({ query, urls }),
     });
 
     if (!flaskResponse.ok) {
@@ -61,9 +34,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse and return Flask response
     const metricsData = await flaskResponse.json();
-
     return NextResponse.json(metricsData);
 
   } catch (error) {
