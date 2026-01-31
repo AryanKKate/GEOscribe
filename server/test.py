@@ -1,24 +1,71 @@
 import requests
+import json
 
-url = "http://127.0.0.1:5000/geo-metrics"
+BASE_URL = "http://127.0.0.1:5000"
 
-ai_answer = """
-Ajit Pawar is an Indian politician and senior leader of the Nationalist Congress Party.
-He has served multiple times as the Deputy Chief Minister of Maharashtra.
-He is known for his influence in state politics and his role in the 2023 NCP split.
-"""
+QUERY = "Who is Ajit Pawar"
+COMPETITOR_URLS = [
+    "https://en.wikipedia.org/wiki/Ajit_Pawar"
+]
 
-payload = {
+# -----------------------------
+# STEP 1: ASK (AI Answer)
+# -----------------------------
+print("\n[1] Calling /ask ...")
+
+ask_res = requests.post(
+    f"{BASE_URL}/ask",
+    json={"query": QUERY}
+)
+
+ask_res.raise_for_status()
+ask_data = ask_res.json()
+
+ai_answer = ask_data["raw_answer"]
+print("✔ AI answer received")
+
+# -----------------------------
+# STEP 2: COLLECT STRUCTURE
+# -----------------------------
+print("\n[2] Calling /collect-structure ...")
+
+collect_res = requests.post(
+    f"{BASE_URL}/collect-structure",
+    json={"urls": COMPETITOR_URLS}
+)
+
+collect_res.raise_for_status()
+collect_data = collect_res.json()
+
+competitors = []
+for result in collect_data["results"]:
+  competitors.append({
+    "url": result["url"],
+    "content_id": result["content_id"],
+    "structure_fingerprint": result["structure_fingerprint"]
+})
+
+
+
+print(f"✔ Collected structure for {len(competitors)} competitors")
+
+# -----------------------------
+# STEP 3: GEO EVALUATION
+# -----------------------------
+print("\n[3] Calling /geo-evaluate ...")
+
+geo_payload = {
     "ai_answer": ai_answer,
-    "urls": [
-        "https://en.wikipedia.org/wiki/Ajit_Pawar"
-    ]
+    "competitors": competitors
 }
 
-response = requests.post(url, json=payload)
+geo_res = requests.post(
+    f"{BASE_URL}/geo-evaluate",
+    json=geo_payload
+)
 
-print("Status Code:", response.status_code)
-data = response.json()
+geo_res.raise_for_status()
+geo_data = geo_res.json()
 
-print("\n=== GEO METRICS ===")
-print(data)
+print("\n✅ GEO Evaluation Result:\n")
+print(json.dumps(geo_data, indent=2))
