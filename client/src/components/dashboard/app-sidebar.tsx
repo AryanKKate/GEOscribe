@@ -9,6 +9,7 @@ import {
   LogOut,
   ChevronUp,
   User2,
+  Sparkles,
 } from "lucide-react";
 
 import {
@@ -41,6 +42,11 @@ const navItems = [
     title: "Overview",
     url: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    title: "GEO",
+    url: "/dashboard/geo",
+    icon: Sparkles,
   },
   {
     title: "Todos",
