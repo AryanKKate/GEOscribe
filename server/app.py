@@ -7,6 +7,13 @@ from datetime import datetime
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 import numpy as np
+from collections import Counter
+import math
+
+STOPWORDS = set([
+    "the", "is", "and", "of", "to", "in", "for", "on", "with",
+    "a", "an", "by", "as", "are", "that", "this"
+])
 
 load_dotenv()
 
@@ -238,6 +245,57 @@ def structural_depth_diff(ai_struct: dict, comp_struct: dict) -> dict:
         "h3_diff": ai_struct["metrics"]["h3_count"] - comp_struct["metrics"]["h3_count"]
     }
 
+def extract_topics_from_text(text, top_k=20):
+    words = re.findall(r"\b[a-zA-Z]{4,}\b", text.lower())
+    filtered = [w for w in words if w not in STOPWORDS]
+    return set([w for w, _ in Counter(filtered).most_common(top_k)])
+
+def extract_topics_from_structure(structure):
+    topics = set()
+    for sec in structure["sections"]:
+        words = re.findall(r"\b[a-zA-Z]{4,}\b", sec["heading"].lower())
+        topics.update([w for w in words if w not in STOPWORDS])
+    return topics
+
+def topics_included(ai_text, competitor_topics):
+    ai_topics = extract_topics_from_text(ai_text)
+    return sorted(ai_topics & competitor_topics)
+def topics_missing(ai_text, competitor_topics):
+    ai_topics = extract_topics_from_text(ai_text)
+    return sorted(competitor_topics - ai_topics)
+def topics_weak(ai_text, competitor_topics, min_mentions=2):
+    weak = []
+    for topic in competitor_topics:
+        count = len(re.findall(rf"\b{topic}\b", ai_text.lower()))
+        if 0 < count < min_mentions:
+            weak.append(topic)
+    return weak
+def structural_preferences(ai_struct, comp_structs):
+    avg_comp = {
+        "avg_words_per_section": sum(
+            c["metrics"]["avg_words_per_section"] for c in comp_structs
+        ) / len(comp_structs),
+        "bullet_ratio": sum(
+            c["metrics"]["bullet_section_ratio"] for c in comp_structs
+        ) / len(comp_structs),
+        "h2_density": sum(
+            c["metrics"]["h2_count"] for c in comp_structs
+        ) / len(comp_structs)
+    }
+
+    ai = ai_struct["metrics"]
+
+    return {
+        "prefers_short_sections": ai["avg_words_per_section"] < avg_comp["avg_words_per_section"],
+        "prefers_bullets": ai["bullet_section_ratio"] > avg_comp["bullet_ratio"],
+        "heading_depth_bias": (
+            "deeper"
+            if ai["h2_count"] > avg_comp["h2_density"]
+            else "shallower"
+        )
+    }
+
+
 @app.route('/geo-evaluate', methods=['POST'])
 def geo_evaluate_reused():
     data = request.get_json(force=True)
@@ -251,8 +309,10 @@ def geo_evaluate_reused():
         }), 400
 
     ai_structure = extract_structure(ai_answer)
+    ai_topics = extract_topics_from_text(ai_answer)
 
     results = []
+    competitor_structures = []
 
     for comp in competitors:
         try:
@@ -261,6 +321,9 @@ def geo_evaluate_reused():
             markdown = SCRAPED_CONTENT_CACHE.get(content_id, "")
 
             comp_structure = comp.get("structure_fingerprint")
+            competitor_structures.append(comp_structure)
+
+            comp_topics = extract_topics_from_structure(comp_structure)
 
             evaluation = {
                 "url": url,
@@ -275,6 +338,11 @@ def geo_evaluate_reused():
                         ai_structure,
                         comp_structure
                     )
+                },
+                "topic_analysis": {
+                    "included_topics": topics_included(ai_answer, comp_topics),
+                    "missing_topics": topics_missing(ai_answer, comp_topics),
+                    "weak_topics": topics_weak(ai_answer, comp_topics)
                 }
             }
 
@@ -289,8 +357,13 @@ def geo_evaluate_reused():
     return jsonify({
         "status": "success",
         "geo_metrics": results,
+        "structural_preferences": structural_preferences(
+            ai_structure,
+            competitor_structures
+        ),
         "timestamp": datetime.utcnow().isoformat()
     }), 200
+
 
 
 # =========================================================
