@@ -161,6 +161,8 @@ interface StructuralPreferences {
 
 interface GeoMetricsResponse {
   status: string
+  query_used?: string
+  ai_answer_preview?: string
   geo_metrics: GeoMetric[]
   structural_preferences: StructuralPreferences
   timestamp: string
@@ -203,7 +205,7 @@ export function GeoSynthesisScreen() {
   const [isScraping, setIsScraping] = useState(false)
   const [scrapeError, setScrapeError] = useState<string | null>(null)
   
-  // State for GEO Metrics (Combined Analysis)
+  // State for GEO Metrics (Part 3 - performs full pipeline: AI answer + scraping + metrics)
   const [metricsQuery, setMetricsQuery] = useState<string>("")
   const [metricsUrl, setMetricsUrl] = useState<string>("")
   const [metricsResult, setMetricsResult] = useState<GeoMetricsResponse | null>(null)
@@ -361,8 +363,8 @@ export function GeoSynthesisScreen() {
   }
 
   /**
-   * Fetch GEO Metrics - Combined AI vs Competitor analysis
-   * This sends query + URL to Flask /geo-metrics endpoint
+   * Fetch GEO Metrics - Performs full pipeline (AI answer + scraping + metrics)
+   * This sends query and URL to the evaluate endpoint which handles everything
    */
   async function handleFetchMetrics(e: React.FormEvent) {
     e.preventDefault()
@@ -373,7 +375,7 @@ export function GeoSynthesisScreen() {
     setMetricsError(null)
     
     try {
-      const response = await fetch("/api/geo/metrics", {
+      const response = await fetch("/api/geo/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -429,11 +431,11 @@ export function GeoSynthesisScreen() {
 
   return (
     <div className="space-y-6">
-      {/* Tab Navigation */}
-      <div className="flex gap-2 border-b">
+      {/* Tab Navigation - Parts 1, 2, and 3 */}
+      <div className="flex gap-1 border-b overflow-x-auto">
         <button
           onClick={() => setActiveTab("ai-answer")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "ai-answer"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -441,12 +443,12 @@ export function GeoSynthesisScreen() {
         >
           <span className="flex items-center gap-2">
             <Sparkles className="h-4 w-4" />
-            AI Answer Analysis
+            Part 1: AI Answer
           </span>
         </button>
         <button
           onClick={() => setActiveTab("competitor")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "competitor"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -454,12 +456,12 @@ export function GeoSynthesisScreen() {
         >
           <span className="flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Competitor Scraping
+            Part 2: Competitor Scraping
           </span>
         </button>
         <button
           onClick={() => setActiveTab("metrics")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "metrics"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -467,7 +469,7 @@ export function GeoSynthesisScreen() {
         >
           <span className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
-            GEO Metrics
+            Part 3: GEO Metrics
           </span>
         </button>
       </div>
@@ -945,18 +947,26 @@ export function GeoSynthesisScreen() {
         </>
       )}
 
-      {/* GEO Metrics Tab Content */}
+      {/* GEO Metrics Tab Content - Part 3: Analysis Layer */}
       {activeTab === "metrics" && (
         <>
+          {/* Part 3 Header */}
+          <Alert className="border-primary/20 bg-primary/5">
+            <BarChart3 className="h-4 w-4" />
+            <AlertDescription>
+              <span className="font-medium">Part 3: GEO Metrics Dashboard</span> - This is a read-only analysis layer that compares AI-generated content against competitor content. No recommendations are provided here.
+            </AlertDescription>
+          </Alert>
+
           {/* Input Card for Query + URL */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-primary" />
-                GEO Metrics Analysis
+                Analyze GEO Metrics
               </CardTitle>
               <CardDescription>
-                Compare AI-generated content against competitor content to get optimization insights
+                Enter a query and competitor URL to compute coverage scores, structural comparisons, and topic analysis
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1020,199 +1030,229 @@ export function GeoSynthesisScreen() {
             </div>
           )}
 
-          {/* Metrics Results */}
+          {/* Metrics Results - Part 3 Output */}
           {!isLoadingMetrics && metricsResult && metricsResult.geo_metrics?.length > 0 && (
             <div className="space-y-6">
+              {/* Analysis Summary Header */}
+              <Card className="border-primary/30">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Target className="h-5 w-5 text-primary" />
+                      GEO Analysis Results
+                    </CardTitle>
+                    <Badge variant="outline" className="text-xs">
+                      Read-only Insights
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    Analyzed at {formatTimestamp(metricsResult.timestamp)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium">Query:</span> {metricsResult.query_used || "N/A"}
+                  </div>
+                </CardContent>
+              </Card>
+
               {metricsResult.geo_metrics.map((metric, index) => (
                 <div key={index} className="space-y-6">
-                  {/* URL Header */}
+                  {/* Competitor URL Header */}
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Globe className="h-5 w-5 text-primary" />
-                        Analysis for: {metric.url}
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Globe className="h-5 w-5 text-orange-500" />
+                        Competitor: <span className="text-muted-foreground font-normal truncate">{metric.url}</span>
                       </CardTitle>
-                      <CardDescription>
-                        Analyzed at {formatTimestamp(metricsResult.timestamp)}
-                      </CardDescription>
                     </CardHeader>
                   </Card>
 
-                  {/* Score Cards Grid */}
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    {/* Semantic Score */}
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardDescription className="flex items-center gap-1">
-                          <Target className="h-4 w-4" />
-                          Semantic Score
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">
-                          {(metric.semantic_score * 100).toFixed(1)}%
+                  {/* Coverage Scores Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Percent className="h-5 w-5" />
+                        Coverage Scores
+                      </CardTitle>
+                      <CardDescription>
+                        Metrics measuring how well AI content covers competitor topics
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        {/* Semantic Score Gauge */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium flex items-center gap-1">
+                              <Target className="h-4 w-4 text-primary" />
+                              Semantic Score
+                            </span>
+                            <span className="text-2xl font-bold">
+                              {(metric.semantic_score * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="h-3 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-primary transition-all rounded-full"
+                              style={{ width: `${metric.semantic_score * 100}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Semantic relevance to competitor content
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          AI content similarity to competitor
-                        </p>
-                        <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-primary transition-all"
-                            style={{ width: `${metric.semantic_score * 100}%` }}
-                          />
+
+                        {/* PAWC Score */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium flex items-center gap-1">
+                              <Percent className="h-4 w-4 text-blue-500" />
+                              PAWC
+                            </span>
+                            <span className="text-2xl font-bold">
+                              {metric.pawc.toFixed(1)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Partial Answer Word Coverage - weighted word overlap score
+                          </p>
                         </div>
-                      </CardContent>
+
+                        {/* Raw Word Coverage Progress Bar */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium flex items-center gap-1">
+                              <BookOpen className="h-4 w-4 text-green-500" />
+                              Word Coverage
+                            </span>
+                            <span className="text-2xl font-bold">
+                              {(metric.raw_word_coverage * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="h-3 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-green-500 transition-all rounded-full"
+                              style={{ width: `${Math.min(metric.raw_word_coverage * 100, 100)}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Raw word overlap ratio with competitor
+                          </p>
+                        </div>
+
+                        {/* Citation Frequency */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium flex items-center gap-1">
+                              <FileText className="h-4 w-4 text-orange-500" />
+                              Citations
+                            </span>
+                            <span className="text-2xl font-bold">
+                              {metric.citation_frequency}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Times competitor domain is referenced
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
                     </Card>
 
-                    {/* PAWC Score */}
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardDescription className="flex items-center gap-1">
-                          <Percent className="h-4 w-4" />
-                          PAWC Score
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">
-                          {metric.pawc.toFixed(1)}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Percentage AI Word Coverage
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    {/* Raw Word Coverage */}
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardDescription className="flex items-center gap-1">
-                          <BookOpen className="h-4 w-4" />
-                          Word Coverage
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">
-                          {(metric.raw_word_coverage * 100).toFixed(2)}%
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Raw word overlap ratio
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    {/* Citation Frequency */}
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardDescription className="flex items-center gap-1">
-                          <FileText className="h-4 w-4" />
-                          Citations
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">
-                          {metric.citation_frequency}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Citation frequency count
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Structural Depth Comparison */}
+                  {/* Structural Depth Comparison Table */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <LayoutList className="h-5 w-5" />
-                        Structural Depth Comparison
+                        Structural Comparison
                       </CardTitle>
                       <CardDescription>
-                        AI content structure vs Competitor content structure
+                        AI vs Competitor content structure analysis (headings and depth)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid gap-6 md:grid-cols-2">
-                        {/* AI Structure */}
-                        <div className="space-y-3">
-                          <h4 className="font-medium flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-primary" />
-                            AI Content
-                          </h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="p-2 bg-muted/50 rounded">
-                              <div className="text-lg font-bold">{metric.structural_depth.ai.total_word_count}</div>
-                              <div className="text-xs text-muted-foreground">Total Words</div>
-                            </div>
-                            <div className="p-2 bg-muted/50 rounded">
-                              <div className="text-lg font-bold">{metric.structural_depth.ai.section_count}</div>
-                              <div className="text-xs text-muted-foreground">Sections</div>
-                            </div>
-                            <div className="p-2 bg-muted/50 rounded">
-                              <div className="text-lg font-bold">{metric.structural_depth.ai.h1_count}</div>
-                              <div className="text-xs text-muted-foreground">H1 Tags</div>
-                            </div>
-                            <div className="p-2 bg-muted/50 rounded">
-                              <div className="text-lg font-bold">{metric.structural_depth.ai.h2_count}</div>
-                              <div className="text-xs text-muted-foreground">H2 Tags</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Competitor Structure */}
-                        <div className="space-y-3">
-                          <h4 className="font-medium flex items-center gap-2">
-                            <Globe className="h-4 w-4 text-orange-500" />
-                            Competitor Content
-                          </h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="p-2 bg-muted/50 rounded">
-                              <div className="text-lg font-bold">{metric.structural_depth.competitor.total_word_count}</div>
-                              <div className="text-xs text-muted-foreground">Total Words</div>
-                            </div>
-                            <div className="p-2 bg-muted/50 rounded">
-                              <div className="text-lg font-bold">{metric.structural_depth.competitor.section_count}</div>
-                              <div className="text-xs text-muted-foreground">Sections</div>
-                            </div>
-                            <div className="p-2 bg-muted/50 rounded">
-                              <div className="text-lg font-bold">{metric.structural_depth.competitor.h1_count}</div>
-                              <div className="text-xs text-muted-foreground">H1 Tags</div>
-                            </div>
-                            <div className="p-2 bg-muted/50 rounded">
-                              <div className="text-lg font-bold">{metric.structural_depth.competitor.h2_count}</div>
-                              <div className="text-xs text-muted-foreground">H2 Tags</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Heading Difference */}
-                      <div className="mt-4 pt-4 border-t">
-                        <h4 className="font-medium mb-3">Heading Difference (AI - Competitor)</h4>
-                        <div className="flex gap-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">H1:</span>
-                            <Badge variant={metric.structural_depth.difference.h1_diff < 0 ? "destructive" : metric.structural_depth.difference.h1_diff > 0 ? "default" : "secondary"}>
-                              {metric.structural_depth.difference.h1_diff > 0 ? "+" : ""}{metric.structural_depth.difference.h1_diff}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">H2:</span>
-                            <Badge variant={metric.structural_depth.difference.h2_diff < 0 ? "destructive" : metric.structural_depth.difference.h2_diff > 0 ? "default" : "secondary"}>
-                              {metric.structural_depth.difference.h2_diff > 0 ? "+" : ""}{metric.structural_depth.difference.h2_diff}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">H3:</span>
-                            <Badge variant={metric.structural_depth.difference.h3_diff < 0 ? "destructive" : metric.structural_depth.difference.h3_diff > 0 ? "default" : "secondary"}>
-                              {metric.structural_depth.difference.h3_diff > 0 ? "+" : ""}{metric.structural_depth.difference.h3_diff}
-                            </Badge>
-                          </div>
-                        </div>
+                      {/* Comparison Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-2 px-3 font-medium">Metric</th>
+                              <th className="text-center py-2 px-3 font-medium">
+                                <span className="flex items-center justify-center gap-1">
+                                  <Sparkles className="h-4 w-4 text-primary" />
+                                  AI Content
+                                </span>
+                              </th>
+                              <th className="text-center py-2 px-3 font-medium">
+                                <span className="flex items-center justify-center gap-1">
+                                  <Globe className="h-4 w-4 text-orange-500" />
+                                  Competitor
+                                </span>
+                              </th>
+                              <th className="text-center py-2 px-3 font-medium">Difference</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="border-b">
+                              <td className="py-2 px-3 text-muted-foreground">Total Words</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.total_word_count.toLocaleString()}</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.total_word_count.toLocaleString()}</td>
+                              <td className="py-2 px-3 text-center">
+                                <Badge variant={metric.structural_depth.ai.total_word_count - metric.structural_depth.competitor.total_word_count < 0 ? "destructive" : "secondary"}>
+                                  {metric.structural_depth.ai.total_word_count - metric.structural_depth.competitor.total_word_count > 0 ? "+" : ""}
+                                  {metric.structural_depth.ai.total_word_count - metric.structural_depth.competitor.total_word_count}
+                                </Badge>
+                              </td>
+                            </tr>
+                            <tr className="border-b">
+                              <td className="py-2 px-3 text-muted-foreground">Sections</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.section_count}</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.section_count}</td>
+                              <td className="py-2 px-3 text-center">
+                                <Badge variant="secondary">
+                                  {metric.structural_depth.ai.section_count - metric.structural_depth.competitor.section_count > 0 ? "+" : ""}
+                                  {metric.structural_depth.ai.section_count - metric.structural_depth.competitor.section_count}
+                                </Badge>
+                              </td>
+                            </tr>
+                            <tr className="border-b">
+                              <td className="py-2 px-3 text-muted-foreground">H1 Headings</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.h1_count}</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.h1_count}</td>
+                              <td className="py-2 px-3 text-center">
+                                <Badge variant={metric.structural_depth.difference.h1_diff < 0 ? "destructive" : metric.structural_depth.difference.h1_diff > 0 ? "default" : "secondary"}>
+                                  {metric.structural_depth.difference.h1_diff > 0 ? "+" : ""}{metric.structural_depth.difference.h1_diff}
+                                </Badge>
+                              </td>
+                            </tr>
+                            <tr className="border-b">
+                              <td className="py-2 px-3 text-muted-foreground">H2 Headings</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.h2_count}</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.h2_count}</td>
+                              <td className="py-2 px-3 text-center">
+                                <Badge variant={metric.structural_depth.difference.h2_diff < 0 ? "destructive" : metric.structural_depth.difference.h2_diff > 0 ? "default" : "secondary"}>
+                                  {metric.structural_depth.difference.h2_diff > 0 ? "+" : ""}{metric.structural_depth.difference.h2_diff}
+                                </Badge>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="py-2 px-3 text-muted-foreground">H3 Headings</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.h3_count}</td>
+                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.h3_count}</td>
+                              <td className="py-2 px-3 text-center">
+                                <Badge variant={metric.structural_depth.difference.h3_diff < 0 ? "destructive" : metric.structural_depth.difference.h3_diff > 0 ? "default" : "secondary"}>
+                                  {metric.structural_depth.difference.h3_diff > 0 ? "+" : ""}{metric.structural_depth.difference.h3_diff}
+                                </Badge>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
                     </CardContent>
                   </Card>
 
-                  {/* Topic Analysis */}
+                  {/* Topic Analysis - Highlighted Gaps */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -1220,64 +1260,66 @@ export function GeoSynthesisScreen() {
                         Topic Analysis
                       </CardTitle>
                       <CardDescription>
-                        Topics covered, missing, and weak in AI content compared to competitor
+                        Analysis of topics: included, missing, and weak coverage
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      {/* Included Topics */}
-                      <div>
-                        <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                          Included Topics ({metric.topic_analysis.included_topics.length})
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {metric.topic_analysis.included_topics.length > 0 ? (
-                            metric.topic_analysis.included_topics.map((topic, i) => (
-                              <Badge key={i} variant="secondary" className="bg-green-500/10 text-green-700">
-                                {topic}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-sm text-muted-foreground">No topics included</span>
-                          )}
+                    <CardContent>
+                      <div className="grid gap-4 md:grid-cols-3">
+                        {/* Included Topics */}
+                        <div className="p-4 rounded-lg border bg-green-500/5 border-green-500/20">
+                          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            Included ({metric.topic_analysis.included_topics.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                            {metric.topic_analysis.included_topics.length > 0 ? (
+                              metric.topic_analysis.included_topics.map((topic, i) => (
+                                <Badge key={i} variant="secondary" className="bg-green-500/10 text-green-700 text-xs">
+                                  {topic}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">No topics detected</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Missing Topics */}
-                      <div>
-                        <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                          <XCircle className="h-4 w-4 text-red-500" />
-                          Missing Topics ({metric.topic_analysis.missing_topics.length})
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {metric.topic_analysis.missing_topics.length > 0 ? (
-                            metric.topic_analysis.missing_topics.map((topic, i) => (
-                              <Badge key={i} variant="secondary" className="bg-red-500/10 text-red-700">
-                                {topic}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-sm text-muted-foreground">No missing topics</span>
-                          )}
+                        {/* Missing Topics - Highlighted Gaps */}
+                        <div className="p-4 rounded-lg border bg-red-500/5 border-red-500/20">
+                          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                            <XCircle className="h-4 w-4 text-red-600" />
+                            Missing ({metric.topic_analysis.missing_topics.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                            {metric.topic_analysis.missing_topics.length > 0 ? (
+                              metric.topic_analysis.missing_topics.map((topic, i) => (
+                                <Badge key={i} variant="secondary" className="bg-red-500/10 text-red-700 text-xs">
+                                  {topic}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">No gaps detected</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Weak Topics */}
-                      <div>
-                        <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                          Weak Topics ({metric.topic_analysis.weak_topics.length})
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {metric.topic_analysis.weak_topics.length > 0 ? (
-                            metric.topic_analysis.weak_topics.map((topic, i) => (
-                              <Badge key={i} variant="secondary" className="bg-yellow-500/10 text-yellow-700">
-                                {topic}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-sm text-muted-foreground">No weak topics</span>
-                          )}
+                        {/* Weak Topics */}
+                        <div className="p-4 rounded-lg border bg-yellow-500/5 border-yellow-500/20">
+                          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                            Weak ({metric.topic_analysis.weak_topics.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                            {metric.topic_analysis.weak_topics.length > 0 ? (
+                              metric.topic_analysis.weak_topics.map((topic, i) => (
+                                <Badge key={i} variant="secondary" className="bg-yellow-500/10 text-yellow-700 text-xs">
+                                  {topic}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">No weak topics</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -1285,53 +1327,78 @@ export function GeoSynthesisScreen() {
                 </div>
               ))}
 
-              {/* Structural Preferences */}
+              {/* Structural Preferences - Preferred Content Style */}
               {metricsResult.structural_preferences && (
-                <Card>
+                <Card className="border-dashed">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <TrendingUp className="h-5 w-5" />
-                      Structural Preferences
+                      Preferred Content Style
                     </CardTitle>
                     <CardDescription>
-                      Detected content structure preferences based on analysis
+                      Inferred preferences based on competitor content analysis
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-4 md:grid-cols-3">
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <Hash className="h-5 w-5" />
+                      {/* Heading Depth Bias */}
+                      <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Hash className="h-6 w-6" />
                         </div>
                         <div>
                           <p className="text-sm font-medium">Heading Depth</p>
-                          <p className="text-xs text-muted-foreground capitalize">
+                          <p className="text-sm text-muted-foreground capitalize flex items-center gap-1">
+                            {metricsResult.structural_preferences.heading_depth_bias === "deeper" ? (
+                              <TrendingDown className="h-4 w-4 text-blue-500" />
+                            ) : (
+                              <TrendingUp className="h-4 w-4 text-orange-500" />
+                            )}
                             {metricsResult.structural_preferences.heading_depth_bias}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${metricsResult.structural_preferences.prefers_bullets ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
-                          <List className="h-5 w-5" />
+
+                      {/* Bullet Preference */}
+                      <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border">
+                        <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${metricsResult.structural_preferences.prefers_bullets ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+                          <List className="h-6 w-6" />
                         </div>
                         <div>
                           <p className="text-sm font-medium">Bullet Lists</p>
-                          <p className="text-xs text-muted-foreground">
-                            {metricsResult.structural_preferences.prefers_bullets ? "Preferred" : "Not preferred"}
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            {metricsResult.structural_preferences.prefers_bullets ? (
+                              <>
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                                Preferred
+                              </>
+                            ) : (
+                              <>
+                                <Minus className="h-4 w-4" />
+                                Not preferred
+                              </>
+                            )}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${metricsResult.structural_preferences.prefers_short_sections ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
-                          <FileText className="h-5 w-5" />
+
+                      {/* Section Length Preference */}
+                      <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border">
+                        <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${metricsResult.structural_preferences.prefers_short_sections ? 'bg-blue-500/10 text-blue-600' : 'bg-orange-500/10 text-orange-600'}`}>
+                          <FileText className="h-6 w-6" />
                         </div>
                         <div>
                           <p className="text-sm font-medium">Section Length</p>
-                          <p className="text-xs text-muted-foreground">
-                            {metricsResult.structural_preferences.prefers_short_sections ? "Short sections preferred" : "Long sections preferred"}
+                          <p className="text-sm text-muted-foreground">
+                            {metricsResult.structural_preferences.prefers_short_sections ? "Short sections" : "Long sections"}
                           </p>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Read-only note */}
+                    <div className="mt-4 pt-4 border-t text-center text-sm text-muted-foreground">
+                      This is a read-only analysis view. Recommendations are available in Part 4.
                     </div>
                   </CardContent>
                 </Card>
@@ -1344,10 +1411,28 @@ export function GeoSynthesisScreen() {
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <BarChart3 className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Metrics Analyzed Yet</h3>
-                <p className="text-sm text-muted-foreground text-center max-w-sm">
-                  Enter a query and competitor URL above to analyze GEO metrics and get optimization insights.
+                <h3 className="text-lg font-medium mb-2">GEO Metrics Not Computed Yet</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-md mb-4">
+                  Enter a query and competitor URL above to compute GEO metrics. This will automatically generate an AI answer, scrape the competitor content, and compute the comparison metrics.
                 </p>
+                <div className="grid gap-2 text-sm text-muted-foreground max-w-md">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-primary" />
+                    <span>Coverage scores (PAWC, semantic score, word coverage)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <LayoutList className="h-4 w-4 text-primary" />
+                    <span>Structural comparison (AI vs Competitor headings)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Tags className="h-4 w-4 text-primary" />
+                    <span>Topic analysis (included, missing, weak topics)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    <span>Preferred content style inferences</span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}

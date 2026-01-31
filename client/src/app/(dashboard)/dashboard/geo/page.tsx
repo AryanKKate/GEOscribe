@@ -1,29 +1,27 @@
 import { GeoSynthesisScreen } from "@/components/geo/geo-synthesis-screen"
 
 /**
- * GEO Answers Synthesis Page - Step 4 of the GEO Platform
+ * GEO Platform - Generative Engine Optimization
  * 
- * This page displays how a generative AI currently answers a given user query.
- * It is READ-ONLY and does NOT modify or optimize content.
+ * This page contains the GEO analysis pipeline with 3 parts:
+ * - Part 1: AI Answer Analysis - Generate and analyze AI responses
+ * - Part 2: Competitor Scraping - Scrape and analyze competitor content structure
+ * - Part 3: GEO Metrics Dashboard - Compare AI vs Competitor with read-only metrics
  * 
- * Features:
- * - Target query display
- * - Raw AI-generated answer viewer
- * - Key concepts/entities as tags
- * - Answer format classification
+ * Part 4 (Recommendations) is handled separately.
  */
 export default function GeoPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">GEO Answers Synthesis</h1>
+        <h1 className="text-3xl font-bold tracking-tight">GEO Analysis Platform</h1>
         <p className="text-muted-foreground">
-          Understand how AI models respond to user queries. This is a read-only analysis view.
+          Generative Engine Optimization - Analyze AI responses and compare against competitor content
         </p>
       </div>
 
-      {/* Main GEO Synthesis Component */}
+      {/* Main GEO Component with Tabs for Part 1, 2, and 3 */}
       <GeoSynthesisScreen />
     </div>
   )
