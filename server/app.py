@@ -7,6 +7,13 @@ from datetime import datetime
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 import numpy as np
+from collections import Counter
+import math
+
+STOPWORDS = set([
+    "the", "is", "and", "of", "to", "in", "for", "on", "with",
+    "a", "an", "by", "as", "are", "that", "this"
+])
 
 load_dotenv()
 
@@ -202,46 +209,6 @@ def collect_structure():
 
 semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-def get_ai_answer(query):
-    """Logic from your /ask route"""
-    completion = groq_client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[{"role": "user", "content": query}]
-    )
-    return completion.choices[0].message.content
-def get_competitor_data(urls):
-    """Core logic extracted from /collect-structure"""
-    results = []
-    
-    if isinstance(urls, str):
-        urls = [urls]
-
-    for url in urls:
-        try:
-            # Reusing your Firecrawl scraper
-            markdown = firecrawl_scrape(url)
-            content_id = f"{url}_{int(datetime.utcnow().timestamp())}"
-
-            # Updating your global cache
-            SCRAPED_CONTENT_CACHE[content_id] = markdown
-            
-            # Reusing your structure extractor
-            structure = extract_structure(markdown)
-
-            results.append({
-                "url": url,
-                "content_id": content_id,
-                "structure_fingerprint": structure,
-                "timestamp": datetime.utcnow().isoformat()
-            })
-        except Exception as e:
-            results.append({
-                "url": url, 
-                "error": str(e)
-            })
-    return results
-
-
 def semantic_score(text_a: str, text_b: str) -> float:
     embeddings = semantic_model.encode([text_a, text_b])
     a, b = embeddings[0], embeddings[1]
@@ -278,40 +245,91 @@ def structural_depth_diff(ai_struct: dict, comp_struct: dict) -> dict:
         "h3_diff": ai_struct["metrics"]["h3_count"] - comp_struct["metrics"]["h3_count"]
     }
 
+def extract_topics_from_text(text, top_k=20):
+    words = re.findall(r"\b[a-zA-Z]{4,}\b", text.lower())
+    filtered = [w for w in words if w not in STOPWORDS]
+    return set([w for w, _ in Counter(filtered).most_common(top_k)])
+
+def extract_topics_from_structure(structure):
+    topics = set()
+    for sec in structure["sections"]:
+        words = re.findall(r"\b[a-zA-Z]{4,}\b", sec["heading"].lower())
+        topics.update([w for w in words if w not in STOPWORDS])
+    return topics
+
+def topics_included(ai_text, competitor_topics):
+    ai_topics = extract_topics_from_text(ai_text)
+    return sorted(ai_topics & competitor_topics)
+def topics_missing(ai_text, competitor_topics):
+    ai_topics = extract_topics_from_text(ai_text)
+    return sorted(competitor_topics - ai_topics)
+def topics_weak(ai_text, competitor_topics, min_mentions=2):
+    weak = []
+    for topic in competitor_topics:
+        count = len(re.findall(rf"\b{topic}\b", ai_text.lower()))
+        if 0 < count < min_mentions:
+            weak.append(topic)
+    return weak
+def structural_preferences(ai_struct, comp_structs):
+    avg_comp = {
+        "avg_words_per_section": sum(
+            c["metrics"]["avg_words_per_section"] for c in comp_structs
+        ) / len(comp_structs),
+        "bullet_ratio": sum(
+            c["metrics"]["bullet_section_ratio"] for c in comp_structs
+        ) / len(comp_structs),
+        "h2_density": sum(
+            c["metrics"]["h2_count"] for c in comp_structs
+        ) / len(comp_structs)
+    }
+
+    ai = ai_struct["metrics"]
+
+    return {
+        "prefers_short_sections": ai["avg_words_per_section"] < avg_comp["avg_words_per_section"],
+        "prefers_bullets": ai["bullet_section_ratio"] > avg_comp["bullet_ratio"],
+        "heading_depth_bias": (
+            "deeper"
+            if ai["h2_count"] > avg_comp["h2_density"]
+            else "shallower"
+        )
+    }
+
+
 @app.route('/geo-evaluate', methods=['POST'])
-def geo_evaluate():
+def geo_evaluate_reused():
     data = request.get_json(force=True)
-    
-    query = data.get("query")
-    urls = data.get("urls") # Expected list: ["url1", "url2"]
 
-    if not query or not urls:
-        return jsonify({"error": "query and urls are required"}), 400
+    ai_answer = data.get("ai_answer")
+    competitors = data.get("competitors")
 
-    if isinstance(urls, str):
-        urls = [urls]
+    if not ai_answer or not competitors:
+        return jsonify({
+            "error": "ai_answer and competitors required"
+        }), 400
 
-    # 1. Get the AI Answer internally (instead of passing it in)
-    ai_answer = get_ai_answer(query)
-
-    # 2. Get Competitor Structures internally
-    competitors = get_competitor_data(urls)
-
-    # --- Start Evaluation Logic (Reused from your snippet) ---
     ai_structure = extract_structure(ai_answer)
+    ai_topics = extract_topics_from_text(ai_answer)
 
     results = []
+    competitor_structures = []
 
     for comp in competitors:
         try:
             url = comp["url"]
             content_id = comp["content_id"]
             markdown = SCRAPED_CONTENT_CACHE.get(content_id, "")
+
             comp_structure = comp.get("structure_fingerprint")
+            competitor_structures.append(comp_structure)
+
+            comp_topics = extract_topics_from_structure(comp_structure)
 
             evaluation = {
                 "url": url,
                 "semantic_score": semantic_score(ai_answer, markdown),
+                "pawc": pawc(ai_answer, markdown),
+                "raw_word_coverage": raw_word_coverage(ai_answer, markdown),
                 "citation_frequency": citation_frequency(ai_answer, url),
                 "structural_depth": {
                     "ai": ai_structure["metrics"],
@@ -327,16 +345,25 @@ def geo_evaluate():
                     "weak_topics": topics_weak(ai_answer, comp_topics)
                 }
             }
+
             results.append(evaluation)
+
         except Exception as e:
-            results.append({"url": comp.get("url"), "error": str(e)})
+            results.append({
+                "url": comp.get("url"),
+                "error": str(e)
+            })
 
     return jsonify({
         "status": "success",
-        "ai_answer_used": ai_answer,
         "geo_metrics": results,
+        "structural_preferences": structural_preferences(
+            ai_structure,
+            competitor_structures
+        ),
         "timestamp": datetime.utcnow().isoformat()
     }), 200
+
 
 
 # =========================================================
