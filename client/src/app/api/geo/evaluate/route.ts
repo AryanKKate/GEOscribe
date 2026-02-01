@@ -17,7 +17,7 @@ const FLASK_BACKEND_URL = process.env.FLASK_BACKEND_URL || "http://localhost:500
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { query, url } = body;
+    const { query, urls } = body;
 
     // Validate required parameters
     if (!query || !query.trim()) {
@@ -27,12 +27,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!url || !url.trim()) {
+    if (!urls || !Array.isArray(urls) || urls.length === 0) {
       return NextResponse.json(
-        { error: "Missing required parameter: url" },
+        { error: "Missing required parameter: urls" },
         { status: 400 }
       );
     }
+    // ✅ Normalize competitor URLs (trim + remove empty values)
+    const normalizedUrls = urls
+      .map((u: string) => u.trim())
+      .filter(Boolean);
+
 
     // Step 1: Get AI answer from Flask /ask
     console.log("[GEO Evaluate] Step 1: Getting AI answer for query:", query);
@@ -65,11 +70,15 @@ export async function POST(request: NextRequest) {
     console.log("[GEO Evaluate] Step 1 complete. AI answer length:", aiAnswer.length);
 
     // Step 2: Scrape competitor content from Flask /collect-structure
-    console.log("[GEO Evaluate] Step 2: Scraping competitor URL:", url);
+    console.log(
+      "[GEO Evaluate] Step 2: Scraping competitor URLs:",
+      normalizedUrls
+    );
+
     const scrapeResponse = await fetch(`${FLASK_BACKEND_URL}/collect-structure`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ urls: url.trim() }),
+      body: JSON.stringify({ urls: normalizedUrls }),
     });
 
     if (!scrapeResponse.ok) {
