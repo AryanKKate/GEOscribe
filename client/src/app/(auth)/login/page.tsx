@@ -16,7 +16,7 @@ export default async function LoginPage({
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
             <Link href="/" className="text-2xl font-bold">
-              SaaS MVP
+              GeoScribe
             </Link>
           </div>
           <CardTitle className="text-2xl text-center">Welcome back</CardTitle>
