@@ -4,6 +4,7 @@ import { ReactNode } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { GeoRecommendationsPanel } from "./geo-recommendations-panel"
 import {
   FileText,
   Link,
@@ -180,25 +181,14 @@ export function GeoAgentPanel({ result }: GeoAgentPanelProps) {
         </Card>
       )}
 
-      {/* GEO Recommendations Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5" />
-            GEO Recommendations
-          </CardTitle>
-          <CardDescription>
-            AI-generated recommendations to improve your content for AI engines
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-muted/30 rounded-md border p-4 max-h-[400px] overflow-y-auto">
-            <div className="text-sm space-y-3">
-              {renderJSON(recommendationsData)}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* GEO Recommendations Section - Structured Display */}
+      <div>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Lightbulb className="h-5 w-5" />
+          AI Answer Improvement Recommendations
+        </h3>
+        <GeoRecommendationsPanel recommendations={recommendationsData} />
+      </div>
 
       {/* Generated Webpage Structure */}
       {result.generated_webpage && (
