@@ -65,7 +65,7 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Welcome to SaaS MVP!</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Welcome to GeoScribe!</h1>
           <p className="text-muted-foreground">Let&apos;s get your database set up.</p>
         </div>
 
@@ -149,7 +149,7 @@ export default async function DashboardPage() {
                 <div className="h-2 w-2 rounded-full bg-primary mt-2" />
                 <div className="flex-1">
                   <p className="text-sm font-medium">Account created</p>
-                  <p className="text-xs text-muted-foreground">Welcome to SaaS MVP</p>
+                  <p className="text-xs text-muted-foreground">Welcome to GeoScribe</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">

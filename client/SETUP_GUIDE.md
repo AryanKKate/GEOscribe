@@ -1,6 +1,6 @@
 # 🛠️ Setup Guide
 
-This guide walks you through setting up the SaaS MVP template from scratch.
+This guide walks you through setting up the GeoScribe template from scratch.
 
 Back to the **[Main README](./README.md)**  
 Need help? Ask in **[Discussions](../../discussions)**

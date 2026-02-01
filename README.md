@@ -1,4 +1,4 @@
-# SaaS MVP Template 🚀
+# GeoScribe Template 🚀
 
 A complete, production-ready SaaS starter template built with **Next.js 16**, **Supabase**, and modern web technologies.  
 Perfect for hackathons, MVPs, and rapid product experiments.

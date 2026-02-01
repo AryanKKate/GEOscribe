@@ -1,4 +1,4 @@
--- SaaS MVP Template - Database Initialization Script
+-- GeoScribe Template - Database Initialization Script
 -- This script creates all necessary tables, functions, and RLS policies
 
 -- Enable UUID extension
