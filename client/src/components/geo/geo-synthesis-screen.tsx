@@ -204,6 +204,7 @@ export function GeoSynthesisScreen() {
   const [scrapeResults, setScrapeResults] = useState<ScrapeResponse | null>(null)
   const [isScraping, setIsScraping] = useState(false)
   const [scrapeError, setScrapeError] = useState<string | null>(null)
+  const [selectedScrapedIndex, setSelectedScrapedIndex] = useState<number>(0)
   
   // State for GEO Metrics (Part 3 - performs full pipeline: AI answer + scraping + metrics)
   const [metricsQuery, setMetricsQuery] = useState<string>("")
@@ -350,9 +351,11 @@ export function GeoSynthesisScreen() {
       
       const data = await response.json()
       setScrapeResults(data)
-      
+      setSelectedScrapedIndex(0) // 👈 ADD THIS
+
       // Clear input on success
       setUrlInput("")
+
       
     } catch (err) {
       console.error("[GEO] Error scraping URL:", err)
@@ -787,148 +790,191 @@ export function GeoSynthesisScreen() {
                   </CardDescription>
                 </CardHeader>
               </Card>
-
-              {/* Individual URL Results */}
-              {scrapeResults.results.map((result, index) => (
-                <Card key={index} className={result.error ? "border-destructive" : ""}>
-                  <CardHeader>
+              {/* Scraped URL Selector */}
+              {scrapeResults.results.length > 1 && (
+                <Card>
+                  <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-base">
-                      {result.error ? (
-                        <XCircle className="h-5 w-5 text-destructive" />
-                      ) : (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                      )}
-                      <span className="truncate">{result.url}</span>
+                      <List className="h-4 w-4" />
+                      Select Scraped URL
                     </CardTitle>
-                    {result.timestamp && (
-                      <CardDescription>
-                        Scraped at {formatTimestamp(result.timestamp)}
-                      </CardDescription>
-                    )}
                   </CardHeader>
                   <CardContent>
-                    {result.error ? (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{result.error}</AlertDescription>
-                      </Alert>
-                    ) : result.structure_fingerprint && (
-                      <div className="grid gap-6 lg:grid-cols-3">
-                        {/* Metrics Overview */}
-                        <div className="lg:col-span-1 space-y-4">
-                          <div>
-                            <h4 className="font-medium mb-3 flex items-center gap-2">
-                              <BarChart3 className="h-4 w-4" />
-                              Content Metrics
-                            </h4>
-                            <div className="space-y-2">
-                              <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
-                                <span className="text-sm text-muted-foreground">Total Words</span>
-                                <Badge variant="secondary">
-                                  {result.structure_fingerprint.metrics.total_word_count.toLocaleString()}
-                                </Badge>
-                              </div>
-                              <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
-                                <span className="text-sm text-muted-foreground">Sections</span>
-                                <Badge variant="secondary">
-                                  {result.structure_fingerprint.metrics.section_count}
-                                </Badge>
-                              </div>
-                              <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
-                                <span className="text-sm text-muted-foreground">Avg Words/Section</span>
-                                <Badge variant="secondary">
-                                  {Math.round(result.structure_fingerprint.metrics.avg_words_per_section)}
-                                </Badge>
-                              </div>
-                              <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
-                                <span className="text-sm text-muted-foreground">Bullet Ratio</span>
-                                <Badge variant="secondary">
-                                  {(result.structure_fingerprint.metrics.bullet_section_ratio * 100).toFixed(0)}%
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Heading Counts */}
-                          <div>
-                            <h4 className="font-medium mb-3 flex items-center gap-2">
-                              <Hash className="h-4 w-4" />
-                              Heading Structure
-                            </h4>
-                            <div className="flex gap-2">
-                              <div className="flex-1 text-center p-2 bg-muted/50 rounded">
-                                <div className="text-lg font-bold">{result.structure_fingerprint.metrics.h1_count}</div>
-                                <div className="text-xs text-muted-foreground">H1</div>
-                              </div>
-                              <div className="flex-1 text-center p-2 bg-muted/50 rounded">
-                                <div className="text-lg font-bold">{result.structure_fingerprint.metrics.h2_count}</div>
-                                <div className="text-xs text-muted-foreground">H2</div>
-                              </div>
-                              <div className="flex-1 text-center p-2 bg-muted/50 rounded">
-                                <div className="text-lg font-bold">{result.structure_fingerprint.metrics.h3_count}</div>
-                                <div className="text-xs text-muted-foreground">H3</div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Sections List */}
-                        <div className="lg:col-span-2">
-                          <h4 className="font-medium mb-3 flex items-center gap-2">
-                            <List className="h-4 w-4" />
-                            Content Sections ({result.structure_fingerprint.sections.length})
-                          </h4>
-                          <div className="h-[400px] overflow-y-auto rounded-md border">
-                            <div className="divide-y">
-                              {result.structure_fingerprint.sections.map((section, sectionIndex) => (
-                                <div key={sectionIndex} className="p-3 hover:bg-muted/30">
-                                  <div className="flex items-start justify-between gap-2 mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <Badge 
-                                        variant={section.level === "H1" ? "default" : "outline"}
-                                        className="text-xs"
-                                      >
-                                        {section.level}
-                                      </Badge>
-                                      <span className="font-medium text-sm">{section.heading}</span>
-                                    </div>
-                                    <Badge variant="secondary" className="text-xs shrink-0">
-                                      {section.word_count} words
-                                    </Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground line-clamp-2">
-                                    {section.content_snippet || "No content preview available"}
-                                  </p>
-                                  <div className="flex gap-2 mt-2">
-                                    {section.has_bullets && (
-                                      <Badge variant="outline" className="text-xs">
-                                        <List className="h-3 w-3 mr-1" />
-                                        Bullets
-                                      </Badge>
-                                    )}
-                                    {section.has_numbers && (
-                                      <Badge variant="outline" className="text-xs">
-                                        <Hash className="h-3 w-3 mr-1" />
-                                        Numbered
-                                      </Badge>
-                                    )}
-                                    {section.has_definition && (
-                                      <Badge variant="outline" className="text-xs">
-                                        <Type className="h-3 w-3 mr-1" />
-                                        Definition
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <div className="relative">
+                      <select
+                        value={selectedScrapedIndex}
+                        onChange={(e) => setSelectedScrapedIndex(Number(e.target.value))}
+                        className="w-full h-10 px-3 pr-10 rounded-md border border-input bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 appearance-none cursor-pointer"
+                      >
+                        {scrapeResults.results.map((result, index) => (
+                          <option key={index} value={index}>
+                            {result.url}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" />
+                    </div>
                   </CardContent>
                 </Card>
-              ))}
+              )}
+
+
+              {/* Individual URL Results */}
+              {scrapeResults.results[selectedScrapedIndex] && (() => {
+                const result = scrapeResults.results[selectedScrapedIndex]
+
+                return (
+                  <Card className={result.error ? "border-destructive" : ""}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        {result.error ? (
+                          <XCircle className="h-5 w-5 text-destructive" />
+                        ) : (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        )}
+                        <span className="truncate">{result.url}</span>
+                      </CardTitle>
+                      {result.timestamp && (
+                        <CardDescription>
+                          Scraped at {formatTimestamp(result.timestamp)}
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+
+                    <CardContent>
+                      {result.error ? (
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>{result.error}</AlertDescription>
+                        </Alert>
+                      ) : result.structure_fingerprint && (
+                        <div className="grid gap-6 lg:grid-cols-3">
+                          {/* Metrics Overview */}
+                          <div className="lg:col-span-1 space-y-4">
+                            <div>
+                              <h4 className="font-medium mb-3 flex items-center gap-2">
+                                <BarChart3 className="h-4 w-4" />
+                                Content Metrics
+                              </h4>
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                                  <span className="text-sm text-muted-foreground">Total Words</span>
+                                  <Badge variant="secondary">
+                                    {result.structure_fingerprint.metrics.total_word_count.toLocaleString()}
+                                  </Badge>
+                                </div>
+                                <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                                  <span className="text-sm text-muted-foreground">Sections</span>
+                                  <Badge variant="secondary">
+                                    {result.structure_fingerprint.metrics.section_count}
+                                  </Badge>
+                                </div>
+                                <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                                  <span className="text-sm text-muted-foreground">Avg Words/Section</span>
+                                  <Badge variant="secondary">
+                                    {Math.round(result.structure_fingerprint.metrics.avg_words_per_section)}
+                                  </Badge>
+                                </div>
+                                <div className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                                  <span className="text-sm text-muted-foreground">Bullet Ratio</span>
+                                  <Badge variant="secondary">
+                                    {(result.structure_fingerprint.metrics.bullet_section_ratio * 100).toFixed(0)}%
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Heading Counts */}
+                            <div>
+                              <h4 className="font-medium mb-3 flex items-center gap-2">
+                                <Hash className="h-4 w-4" />
+                                Heading Structure
+                              </h4>
+                              <div className="flex gap-2">
+                                <div className="flex-1 text-center p-2 bg-muted/50 rounded">
+                                  <div className="text-lg font-bold">
+                                    {result.structure_fingerprint.metrics.h1_count}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">H1</div>
+                                </div>
+                                <div className="flex-1 text-center p-2 bg-muted/50 rounded">
+                                  <div className="text-lg font-bold">
+                                    {result.structure_fingerprint.metrics.h2_count}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">H2</div>
+                                </div>
+                                <div className="flex-1 text-center p-2 bg-muted/50 rounded">
+                                  <div className="text-lg font-bold">
+                                    {result.structure_fingerprint.metrics.h3_count}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">H3</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Sections List */}
+                          <div className="lg:col-span-2">
+                            <h4 className="font-medium mb-3 flex items-center gap-2">
+                              <List className="h-4 w-4" />
+                              Content Sections ({result.structure_fingerprint.sections.length})
+                            </h4>
+                            <div className="h-[400px] overflow-y-auto rounded-md border">
+                              <div className="divide-y">
+                                {result.structure_fingerprint.sections.map((section, sectionIndex) => (
+                                  <div key={sectionIndex} className="p-3 hover:bg-muted/30">
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <Badge
+                                          variant={section.level === "H1" ? "default" : "outline"}
+                                          className="text-xs"
+                                        >
+                                          {section.level}
+                                        </Badge>
+                                        <span className="font-medium text-sm">
+                                          {section.heading}
+                                        </span>
+                                      </div>
+                                      <Badge variant="secondary" className="text-xs shrink-0">
+                                        {section.word_count} words
+                                      </Badge>
+                                    </div>
+
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {section.content_snippet || "No content preview available"}
+                                    </p>
+
+                                    <div className="flex gap-2 mt-2">
+                                      {section.has_bullets && (
+                                        <Badge variant="outline" className="text-xs">
+                                          <List className="h-3 w-3 mr-1" />
+                                          Bullets
+                                        </Badge>
+                                      )}
+                                      {section.has_numbers && (
+                                        <Badge variant="outline" className="text-xs">
+                                          <Hash className="h-3 w-3 mr-1" />
+                                          Numbered
+                                        </Badge>
+                                      )}
+                                      {section.has_definition && (
+                                        <Badge variant="outline" className="text-xs">
+                                          <Type className="h-3 w-3 mr-1" />
+                                          Definition
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })()}
             </div>
           )}
 
