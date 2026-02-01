@@ -210,6 +210,7 @@ export function GeoSynthesisScreen() {
   const [metricsQuery, setMetricsQuery] = useState<string>("")
   const [metricsUrl, setMetricsUrl] = useState<string>("")
   const [metricsResult, setMetricsResult] = useState<GeoMetricsResponse | null>(null)
+  const [selectedMetricIndex, setSelectedMetricIndex] = useState<number>(0)
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false)
   const [metricsError, setMetricsError] = useState<string | null>(null)
   
@@ -378,12 +379,16 @@ export function GeoSynthesisScreen() {
     setMetricsError(null)
     
     try {
+      const urls = metricsUrl.includes(",")
+      ? metricsUrl.split(",").map(u => u.trim()).filter(Boolean)
+      : [metricsUrl.trim()]
+
       const response = await fetch("/api/geo/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           query: metricsQuery.trim(),
-          url: metricsUrl.trim()
+          urls
         })
       })
       
@@ -394,6 +399,7 @@ export function GeoSynthesisScreen() {
       
       const data = await response.json()
       setMetricsResult(data)
+      setSelectedMetricIndex(0) 
       
     } catch (err) {
       console.error("[GEO] Error fetching metrics:", err)
@@ -1102,31 +1108,66 @@ export function GeoSynthesisScreen() {
                 </CardContent>
               </Card>
 
-              {metricsResult.geo_metrics.map((metric, index) => (
-                <div key={index} className="space-y-6">
-                  {/* Competitor URL Header */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Globe className="h-5 w-5 text-orange-500" />
-                        Competitor: <span className="text-muted-foreground font-normal truncate">{metric.url}</span>
-                      </CardTitle>
-                    </CardHeader>
-                  </Card>
+              {/* Competitor Selector */}
+              {metricsResult.geo_metrics.length > 1 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <List className="h-4 w-4" />
+                      Select Competitor URL
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="relative">
+                      <select
+                        value={selectedMetricIndex}
+                        onChange={(e) => setSelectedMetricIndex(Number(e.target.value))}
+                        className="w-full h-10 px-3 pr-10 rounded-md border border-input bg-background text-sm appearance-none cursor-pointer"
+                      >
+                        {metricsResult.geo_metrics.map((metric, index) => (
+                          <option key={index} value={index}>
+                            {metric.url}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-                  {/* Coverage Scores Section */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Percent className="h-5 w-5" />
-                        Coverage Scores
-                      </CardTitle>
-                      <CardDescription>
-                        Metrics measuring how well AI content covers competitor topics
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+
+              {metricsResult.geo_metrics[selectedMetricIndex] && (() => {
+                const metric = metricsResult.geo_metrics[selectedMetricIndex]
+
+                return (
+                  <div className="space-y-6">
+                    {/* Competitor URL Header */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <Globe className="h-5 w-5 text-orange-500" />
+                          Competitor:{" "}
+                          <span className="text-muted-foreground font-normal truncate">
+                            {metric.url}
+                          </span>
+                        </CardTitle>
+                      </CardHeader>
+                    </Card>
+
+                    {/* Coverage Scores Section */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <Percent className="h-5 w-5" />
+                          Coverage Scores
+                        </CardTitle>
+                        <CardDescription>
+                          Metrics measuring how well AI content covers competitor topics
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                         {/* Semantic Score Gauge */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
@@ -1149,7 +1190,7 @@ export function GeoSynthesisScreen() {
                           </p>
                         </div>
 
-                        {/* PAWC Score */}
+                          {/* PAWC Score */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium flex items-center gap-1">
@@ -1165,7 +1206,7 @@ export function GeoSynthesisScreen() {
                           </p>
                         </div>
 
-                        {/* Raw Word Coverage Progress Bar */}
+                          {/* Raw Word Coverage Progress Bar */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium flex items-center gap-1">
@@ -1187,7 +1228,7 @@ export function GeoSynthesisScreen() {
                           </p>
                         </div>
 
-                        {/* Citation Frequency */}
+                          {/* Citation Frequency */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium flex items-center gap-1">
@@ -1203,12 +1244,12 @@ export function GeoSynthesisScreen() {
                           </p>
                         </div>
                       </div>
-                    </CardContent>
+                      </CardContent>
                     </Card>
 
-                  {/* Structural Depth Comparison Table */}
-                  <Card>
-                    <CardHeader>
+                    {/* Structural Depth Comparison */}
+                    <Card>
+                      <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <LayoutList className="h-5 w-5" />
                         Structural Comparison
@@ -1279,82 +1320,49 @@ export function GeoSynthesisScreen() {
                         </table>
                       </div>
                     </CardContent>
-                  </Card>
+                    </Card>
 
-                  {/* Topic Analysis - Highlighted Gaps */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Tags className="h-5 w-5" />
-                        Topic Analysis
-                      </CardTitle>
-                      <CardDescription>
-                        Analysis of topics: included, missing, and weak coverage
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid gap-4 md:grid-cols-3">
-                        {/* Included Topics */}
-                        <div className="p-4 rounded-lg border bg-green-500/5 border-green-500/20">
-                          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            Included ({metric.topic_analysis.included_topics.length})
-                          </h4>
-                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                            {metric.topic_analysis.included_topics.length > 0 ? (
-                              metric.topic_analysis.included_topics.map((topic, i) => (
-                                <Badge key={i} variant="secondary" className="bg-green-500/10 text-green-700 text-xs">
-                                  {topic}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-sm text-muted-foreground">No topics detected</span>
-                            )}
+                    {/* Topic Analysis */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Tags className="h-5 w-5" />
+                          Topic Analysis
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div>
+                            <h4 className="font-medium mb-2">Included</h4>
+                            {metric.topic_analysis.included_topics.map((t, i) => (
+                              <Badge key={i} variant="secondary" className="mr-1 mb-1">
+                                {t}
+                              </Badge>
+                            ))}
+                          </div>
+                          <div>
+                            <h4 className="font-medium mb-2">Missing</h4>
+                            {metric.topic_analysis.missing_topics.map((t, i) => (
+                              <Badge key={i} variant="destructive" className="mr-1 mb-1">
+                                {t}
+                              </Badge>
+                            ))}
+                          </div>
+                          <div>
+                            <h4 className="font-medium mb-2">Weak</h4>
+                            {metric.topic_analysis.weak_topics.map((t, i) => (
+                              <Badge key={i} variant="outline" className="mr-1 mb-1">
+                                {t}
+                              </Badge>
+                            ))}
                           </div>
                         </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )
+              })()}
 
-                        {/* Missing Topics - Highlighted Gaps */}
-                        <div className="p-4 rounded-lg border bg-red-500/5 border-red-500/20">
-                          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                            <XCircle className="h-4 w-4 text-red-600" />
-                            Missing ({metric.topic_analysis.missing_topics.length})
-                          </h4>
-                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                            {metric.topic_analysis.missing_topics.length > 0 ? (
-                              metric.topic_analysis.missing_topics.map((topic, i) => (
-                                <Badge key={i} variant="secondary" className="bg-red-500/10 text-red-700 text-xs">
-                                  {topic}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-sm text-muted-foreground">No gaps detected</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Weak Topics */}
-                        <div className="p-4 rounded-lg border bg-yellow-500/5 border-yellow-500/20">
-                          <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                            Weak ({metric.topic_analysis.weak_topics.length})
-                          </h4>
-                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                            {metric.topic_analysis.weak_topics.length > 0 ? (
-                              metric.topic_analysis.weak_topics.map((topic, i) => (
-                                <Badge key={i} variant="secondary" className="bg-yellow-500/10 text-yellow-700 text-xs">
-                                  {topic}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-sm text-muted-foreground">No weak topics</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              ))}
 
               {/* Structural Preferences - Preferred Content Style */}
               {metricsResult.structural_preferences && (
