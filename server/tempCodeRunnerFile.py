@@ -1,2 +1,0 @@
-
-print("\n[STATUS CODE]")
