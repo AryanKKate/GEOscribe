@@ -139,79 +139,15 @@ export function GeoAgentPanel({ result }: GeoAgentPanelProps) {
         </Card>
       )}
 
-      {/* ================= GEO Recommendations (STRUCTURED) ================= */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5" />
-            GEO Recommendations
-          </CardTitle>
-          <CardDescription>
-            Structured, actionable improvements for AI engines
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4 text-sm">
-          {structuredReco ? (
-            <>
-              {structuredReco.missing_sections && (
-                <div>
-                  <h4 className="font-medium mb-1">Missing Sections</h4>
-                  <ul className="list-disc list-inside">
-                    {structuredReco.missing_sections.map((s, i) => (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {structuredReco.content_formats && (
-                <div>
-                  <h4 className="font-medium mb-1">Recommended Content Formats</h4>
-                  <ul className="list-disc list-inside">
-                    {structuredReco.content_formats.map((f, i) => (
-                      <li key={i}>{f}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {structuredReco.structural_improvements && (
-                <div>
-                  <h4 className="font-medium mb-1">Structural Improvements</h4>
-                  <ul className="list-disc list-inside">
-                    {structuredReco.structural_improvements.map((s, i) => (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {structuredReco.final_summary && (
-                <Alert>
-                  <AlertDescription>
-                    {structuredReco.final_summary}
-                  </AlertDescription>
-                </Alert>
-              )}
-            </>
-          ) : (
-            <p className="text-muted-foreground">
-              No structured recommendations available
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
       {/* ================= RAW RECOMMENDATION OUTPUT ================= */}
       {rawRecoText && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">
-              Raw AI Recommendation Output
+              GEO Analysis and recommendation.
             </CardTitle>
             <CardDescription>
-              Unprocessed model output (debug / audit)
+              GEO agent recommendation.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -222,38 +158,6 @@ export function GeoAgentPanel({ result }: GeoAgentPanelProps) {
         </Card>
       )}
 
-      {/* ================= Generated Webpage ================= */}
-      {result.generated_webpage && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5" />
-              Generated Webpage Structure
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {result.generated_webpage.sections?.map((section, i) => (
-              <div key={i} className="border-l-4 border-primary/30 pl-4">
-                <h4 className="font-semibold">{section.heading}</h4>
-                <p className="text-xs text-muted-foreground">{section.summary}</p>
-                <p className="text-sm">{section.content}</p>
-                {section.bullets && (
-                  <ul className="list-disc list-inside mt-2">
-                    {section.bullets.map((b, bi) => (
-                      <li key={bi}>{b}</li>
-                    ))}
-                  </ul>
-                )}
-                {section.definition && (
-                  <p className="italic text-xs mt-2">
-                    <strong>Definition:</strong> {section.definition}
-                  </p>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
