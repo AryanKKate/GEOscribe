@@ -34,7 +34,8 @@ import {
   BookOpen,
   AlertTriangle,
   Minus,
-  ArrowRight
+  ArrowRight,
+  HelpCircle
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -213,8 +214,14 @@ export function GeoSynthesisScreen() {
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false)
   const [metricsError, setMetricsError] = useState<string | null>(null)
   
+  // State for GEO Agent (Part 4 - full pipeline with recommendations and generated page)
+  const [agentQuery, setAgentQuery] = useState<string>("")
+  const [agentResult, setAgentResult] = useState<any>(null)
+  const [isLoadingAgent, setIsLoadingAgent] = useState(false)
+  const [agentError, setAgentError] = useState<string | null>(null)
+  
   // Active tab state
-  const [activeTab, setActiveTab] = useState<"ai-answer" | "competitor" | "metrics">("ai-answer")
+  const [activeTab, setActiveTab] = useState<"ai-answer" | "competitor" | "metrics" | "agent">("ai-answer")
 
   /**
    * Fetch available queries (history) on component mount
@@ -404,6 +411,44 @@ export function GeoSynthesisScreen() {
   }
 
   /**
+   * Fetch GEO Agent Results - Performs full pipeline with recommendations and webpage generation
+   * This sends query to the Flask /geo-agent endpoint which handles everything
+   */
+  async function handleFetchAgent(e: React.FormEvent) {
+    e.preventDefault()
+    
+    if (!agentQuery.trim()) return
+    
+    setIsLoadingAgent(true)
+    setAgentError(null)
+    
+    try {
+      // Call the proxy API route which forwards to Flask /geo-agent
+      const response = await fetch("/api/geo/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          query: agentQuery.trim()
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to fetch GEO agent results")
+      }
+      
+      const data = await response.json()
+      setAgentResult(data)
+      
+    } catch (err) {
+      console.error("[GEO] Error fetching agent results:", err)
+      setAgentError(err instanceof Error ? err.message : "Failed to fetch GEO agent results")
+    } finally {
+      setIsLoadingAgent(false)
+    }
+  }
+
+  /**
    * Get appropriate icon for answer format
    */
   const getFormatIcon = (format: string) => {
@@ -473,6 +518,19 @@ export function GeoSynthesisScreen() {
           <span className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Part 3: GEO Metrics
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("agent")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "agent"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Part 4: Recommendations
           </span>
         </button>
       </div>
@@ -1460,6 +1518,379 @@ export function GeoSynthesisScreen() {
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-primary" />
                     <span>Preferred content style inferences</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* GEO Agent Tab Content - Part 4: Recommendations & Generated Webpage */}
+      {activeTab === "agent" && (
+        <>
+          {/* Part 4 Header */}
+          <Alert className="border-primary/20 bg-primary/5">
+            <Sparkles className="h-4 w-4" />
+            <AlertDescription>
+              <span className="font-medium">Part 4: AI Recommendations & Webpage Generation</span> - Full GEO pipeline with causal reasoning, optimization recommendations, and generated webpage draft.
+            </AlertDescription>
+          </Alert>
+
+          {/* Query Input Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Generate GEO Recommendations
+              </CardTitle>
+              <CardDescription>
+                Enter a query to run the full GEO Agent pipeline. This will analyze AI answers, competitor content, and generate optimization recommendations with a webpage draft.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleFetchAgent} className="flex gap-3">
+                <Input
+                  type="text"
+                  placeholder="e.g., What is machine learning?"
+                  value={agentQuery}
+                  onChange={(e) => setAgentQuery(e.target.value)}
+                  disabled={isLoadingAgent}
+                  className="flex-1"
+                />
+                <Button type="submit" disabled={isLoadingAgent || !agentQuery.trim()}>
+                  {isLoadingAgent ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">Analyze</span>
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Agent Error State */}
+          {agentError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{agentError}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Agent Loading State */}
+          {isLoadingAgent && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <Skeleton className="h-6 w-48" />
+                  <Skeleton className="h-4 w-72" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-48 w-full" />
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Agent Results */}
+          {!isLoadingAgent && agentResult && (
+            <div className="space-y-6">
+              {/* Analysis Summary */}
+              <Card className="border-primary/30">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Target className="h-5 w-5 text-primary" />
+                      GEO Agent Analysis
+                    </CardTitle>
+                    <Badge variant="outline" className="text-xs">
+                      Full Pipeline
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    Complete analysis with AI answer, competitor insights, and recommendations
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium">Query:</span> {agentResult.query || "N/A"}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* AI Answer Section */}
+              {agentResult.ai_answer && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      AI-Generated Answer
+                    </CardTitle>
+                    <CardDescription>
+                      The initial AI-generated response to the query
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[250px] w-full overflow-y-auto rounded-md border p-4 bg-muted/30">
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {agentResult.ai_answer}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Referenced URLs Section */}
+              {agentResult.referenced_urls && agentResult.referenced_urls.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Link className="h-5 w-5" />
+                      Referenced URLs
+                    </CardTitle>
+                    <CardDescription>
+                      Competitor content sources extracted from the AI answer
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {agentResult.referenced_urls.map((url: string, index: number) => (
+                        <div key={index} className="flex items-center gap-2 p-2 rounded border bg-muted/30">
+                          <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <a 
+                            href={url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline truncate"
+                          >
+                            {url}
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Causal Analysis Section */}
+              {agentResult.causal_analysis && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Causal Analysis
+                    </CardTitle>
+                    <CardDescription>
+                      Why these pages were selected by AI based on structure, clarity, and content format
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[250px] w-full overflow-y-auto rounded-md border p-4 bg-muted/30">
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {typeof agentResult.causal_analysis === "string" 
+                          ? agentResult.causal_analysis 
+                          : JSON.stringify(agentResult.causal_analysis, null, 2)}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Recommendations Section */}
+              {agentResult.recommendations && (
+                <Card className="border-green-500/30 bg-green-500/5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-green-600" />
+                      GEO Optimization Recommendations
+                    </CardTitle>
+                    <CardDescription>
+                      Specific recommendations to optimize your content for AI engines
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px] w-full overflow-y-auto rounded-md border p-4 bg-white dark:bg-slate-950">
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {typeof agentResult.recommendations === "string" 
+                          ? agentResult.recommendations 
+                          : JSON.stringify(agentResult.recommendations, null, 2)}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Generated Webpage Section */}
+              {agentResult.generated_webpage && (
+                <Card className="border-blue-500/30 bg-blue-500/5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                      Generated Webpage Draft
+                    </CardTitle>
+                    <CardDescription>
+                      AI-generated webpage structure following GEO optimization recommendations
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Page Metadata */}
+                    {agentResult.generated_webpage.page_title && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <Type className="h-4 w-4" />
+                          Page Metadata
+                        </h4>
+                        <div className="p-3 rounded-lg bg-muted/50 border">
+                          <div className="text-sm mb-2">
+                            <span className="font-medium">Title:</span> {agentResult.generated_webpage.page_title}
+                          </div>
+                          {agentResult.generated_webpage.meta_description && (
+                            <div className="text-sm">
+                              <span className="font-medium">Description:</span> {agentResult.generated_webpage.meta_description}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Executive Summary */}
+                    {agentResult.generated_webpage.executive_summary && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Executive Summary
+                        </h4>
+                        <p className="text-sm leading-relaxed p-3 rounded-lg bg-muted/50 border">
+                          {agentResult.generated_webpage.executive_summary}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Page Sections */}
+                    {agentResult.generated_webpage.sections && agentResult.generated_webpage.sections.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <LayoutList className="h-4 w-4" />
+                          Content Sections ({agentResult.generated_webpage.sections.length})
+                        </h4>
+                        <div className="h-[400px] overflow-y-auto rounded-md border">
+                          <div className="divide-y">
+                            {agentResult.generated_webpage.sections.map((section: any, idx: number) => (
+                              <div key={idx} className="p-4 hover:bg-muted/30">
+                                <h5 className="font-medium text-sm mb-2">{section.heading}</h5>
+                                {section.summary && (
+                                  <p className="text-xs text-muted-foreground mb-2">{section.summary}</p>
+                                )}
+                                {section.content && (
+                                  <p className="text-xs leading-relaxed mb-2 line-clamp-3">{section.content}</p>
+                                )}
+                                {section.bullets && section.bullets.length > 0 && (
+                                  <ul className="text-xs space-y-1 ml-4">
+                                    {section.bullets.map((bullet: string, bidx: number) => (
+                                      <li key={bidx} className="list-disc text-muted-foreground">{bullet}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* FAQ Section */}
+                    {agentResult.generated_webpage.faq && agentResult.generated_webpage.faq.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <HelpCircle className="h-4 w-4" />
+                          Frequently Asked Questions ({agentResult.generated_webpage.faq.length})
+                        </h4>
+                        <div className="space-y-2">
+                          {agentResult.generated_webpage.faq.map((item: any, idx: number) => (
+                            <div key={idx} className="p-3 rounded-lg bg-muted/30 border">
+                              <p className="text-xs font-medium mb-1">{item.question}</p>
+                              <p className="text-xs text-muted-foreground">{item.answer}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Internal Linking Suggestions */}
+                    {agentResult.generated_webpage.internal_linking_suggestions && 
+                      agentResult.generated_webpage.internal_linking_suggestions.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <ArrowRight className="h-4 w-4" />
+                          Internal Linking Suggestions
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {agentResult.generated_webpage.internal_linking_suggestions.map((link: string, idx: number) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {link}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Schema Hints */}
+                    {agentResult.generated_webpage.schema_hints && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Schema Hints
+                        </h4>
+                        <div className="p-3 rounded-lg bg-muted/50 border text-xs">
+                          {Object.entries(agentResult.generated_webpage.schema_hints).map(([key, value]: [string, any], idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              {value ? (
+                                <CheckCircle className="h-3 w-3 text-green-600" />
+                              ) : (
+                                <Minus className="h-3 w-3 text-muted-foreground" />
+                              )}
+                              <span className="capitalize">{key}: {value ? "Yes" : "No"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Empty State for Agent Tab */}
+          {!isLoadingAgent && !agentResult && !agentError && (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Sparkles className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Analysis Yet</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-md mb-4">
+                  Enter a query above to run the complete GEO Agent pipeline. This will analyze AI answers, scrape competitor content, perform causal reasoning, and generate optimization recommendations with a webpage draft.
+                </p>
+                <div className="grid gap-2 text-sm text-muted-foreground max-w-md">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>AI answer generation and analysis</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link className="h-4 w-4 text-primary" />
+                    <span>Competitor content extraction from references</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-primary" />
+                    <span>Causal reasoning for content selection</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-primary" />
+                    <span>GEO optimization recommendations</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span>Generated webpage draft with schema hints</span>
                   </div>
                 </div>
               </CardContent>
