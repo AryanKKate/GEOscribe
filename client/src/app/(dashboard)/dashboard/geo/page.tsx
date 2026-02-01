@@ -3,12 +3,11 @@ import { GeoSynthesisScreen } from "@/components/geo/geo-synthesis-screen"
 /**
  * GEO Platform - Generative Engine Optimization
  * 
- * This page contains the GEO analysis pipeline with 3 parts:
+ * This page contains the GEO analysis pipeline with 4 parts:
  * - Part 1: AI Answer Analysis - Generate and analyze AI responses
  * - Part 2: Competitor Scraping - Scrape and analyze competitor content structure
  * - Part 3: GEO Metrics Dashboard - Compare AI vs Competitor with read-only metrics
- * 
- * Part 4 (Recommendations) is handled separately.
+ * - Part 4: GEO Agent Pipeline - Complete AI-driven analysis with causal reasoning and recommendations
  */
 export default function GeoPage() {
   return (
