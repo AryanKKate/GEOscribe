@@ -1,5 +1,6 @@
 "use client"
 
+import { ReactNode } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -82,7 +83,7 @@ export function GeoAgentPanel({ result }: GeoAgentPanelProps) {
   }
 
   // Helper to render JSON/object data
-  const renderJSON = (data: any, depth = 0): JSX.Element => {
+  const renderJSON = (data: any, depth = 0): ReactNode => {
     if (data === null || data === undefined) return <span className="text-muted-foreground">null</span>;
     if (typeof data === 'string') return <span>{data}</span>;
     if (typeof data === 'number' || typeof data === 'boolean') return <span>{String(data)}</span>;
