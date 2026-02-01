@@ -3,6 +3,15 @@ flask-cors==4.0.1
 requests==2.31.0
 python-dotenv==1.0.1
 gunicorn==21.2.0
+
 groq==0.4.2
-beautifulsoup4==4.12.3
+langchain==0.1.20
+langchain-groq==0.1.5
+langgraph==0.0.48
+
 sentence-transformers==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+keybert==0.8.5
+
+beautifulsoup4==4.12.3

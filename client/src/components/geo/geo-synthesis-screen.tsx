@@ -1178,72 +1178,55 @@ export function GeoSynthesisScreen() {
                           <thead>
                             <tr className="border-b">
                               <th className="text-left py-2 px-3 font-medium">Metric</th>
-                              <th className="text-center py-2 px-3 font-medium">
-                                <span className="flex items-center justify-center gap-1">
-                                  <Sparkles className="h-4 w-4 text-primary" />
-                                  AI Content
-                                </span>
-                              </th>
+                              
                               <th className="text-center py-2 px-3 font-medium">
                                 <span className="flex items-center justify-center gap-1">
                                   <Globe className="h-4 w-4 text-orange-500" />
                                   Competitor
                                 </span>
                               </th>
-                              <th className="text-center py-2 px-3 font-medium">Difference</th>
+                              
                             </tr>
                           </thead>
                           <tbody>
                             <tr className="border-b">
                               <td className="py-2 px-3 text-muted-foreground">Total Words</td>
-                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.total_word_count.toLocaleString()}</td>
+                              
                               <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.total_word_count.toLocaleString()}</td>
                               <td className="py-2 px-3 text-center">
-                                <Badge variant={metric.structural_depth.ai.total_word_count - metric.structural_depth.competitor.total_word_count < 0 ? "destructive" : "secondary"}>
-                                  {metric.structural_depth.ai.total_word_count - metric.structural_depth.competitor.total_word_count > 0 ? "+" : ""}
-                                  {metric.structural_depth.ai.total_word_count - metric.structural_depth.competitor.total_word_count}
-                                </Badge>
+                                
                               </td>
                             </tr>
                             <tr className="border-b">
                               <td className="py-2 px-3 text-muted-foreground">Sections</td>
-                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.section_count}</td>
+                              
                               <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.section_count}</td>
                               <td className="py-2 px-3 text-center">
-                                <Badge variant="secondary">
-                                  {metric.structural_depth.ai.section_count - metric.structural_depth.competitor.section_count > 0 ? "+" : ""}
-                                  {metric.structural_depth.ai.section_count - metric.structural_depth.competitor.section_count}
-                                </Badge>
+                                
                               </td>
                             </tr>
                             <tr className="border-b">
                               <td className="py-2 px-3 text-muted-foreground">H1 Headings</td>
-                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.h1_count}</td>
+                              
                               <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.h1_count}</td>
                               <td className="py-2 px-3 text-center">
-                                <Badge variant={metric.structural_depth.difference.h1_diff < 0 ? "destructive" : metric.structural_depth.difference.h1_diff > 0 ? "default" : "secondary"}>
-                                  {metric.structural_depth.difference.h1_diff > 0 ? "+" : ""}{metric.structural_depth.difference.h1_diff}
-                                </Badge>
+                                
                               </td>
                             </tr>
                             <tr className="border-b">
                               <td className="py-2 px-3 text-muted-foreground">H2 Headings</td>
-                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.h2_count}</td>
+                              
                               <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.h2_count}</td>
                               <td className="py-2 px-3 text-center">
-                                <Badge variant={metric.structural_depth.difference.h2_diff < 0 ? "destructive" : metric.structural_depth.difference.h2_diff > 0 ? "default" : "secondary"}>
-                                  {metric.structural_depth.difference.h2_diff > 0 ? "+" : ""}{metric.structural_depth.difference.h2_diff}
-                                </Badge>
+                                
                               </td>
                             </tr>
                             <tr>
                               <td className="py-2 px-3 text-muted-foreground">H3 Headings</td>
-                              <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.ai.h3_count}</td>
+                              
                               <td className="py-2 px-3 text-center font-medium">{metric.structural_depth.competitor.h3_count}</td>
                               <td className="py-2 px-3 text-center">
-                                <Badge variant={metric.structural_depth.difference.h3_diff < 0 ? "destructive" : metric.structural_depth.difference.h3_diff > 0 ? "default" : "secondary"}>
-                                  {metric.structural_depth.difference.h3_diff > 0 ? "+" : ""}{metric.structural_depth.difference.h3_diff}
-                                </Badge>
+                                
                               </td>
                             </tr>
                           </tbody>
