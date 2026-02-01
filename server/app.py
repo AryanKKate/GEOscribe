@@ -300,8 +300,8 @@ class GEOState(TypedDict, total=False):
     urls: List[str]
     competitors: list
     causal_analysis: str
-    recommendations: str
-    generated_page: Any
+    recommendations: dict   # 🔥 FIX
+    generated_page: dict    # 🔥 FIX
     error: str
 def node_finalize(state: GEOState):
     return state
@@ -343,7 +343,6 @@ def node_collect_structure(state: GEOState):
         state["competitors"] = []
         state["error_collect"] = str(e)
     return state
-
 @safe_node
 def node_causal_reasoning(state: GEOState):
     prompt = f"""
@@ -351,10 +350,15 @@ AI Answer:
 {state.get('ai_answer','')[:3000]}
 
 Competitor structures:
-{json.dumps(state.get('competitors',[]), indent=2)[:4000]}
+{json.dumps(state.get('competitors', []), indent=2)[:4000]}
 
 Explain WHY these pages were selected by a generative AI.
-Focus on structure, clarity, sections, bullets, definitions.
+Focus on:
+- Structure
+- Clarity
+- Section hierarchy
+- Bullets
+- Definitions
 
 Return JSON.
 """
@@ -369,15 +373,36 @@ Causal Analysis:
 {state.get('causal_analysis','')}
 
 What should OUR website add or improve to be reused by AI engines?
+
 Focus on:
 - Missing sections
 - Content formats
 - Structural improvements
 
-Return JSON.
+Return STRICT JSON in this format:
+{{
+  "competitor_analysis": [...],
+  "missing_sections": ["..."],
+  "content_formats": ["..."],
+  "structural_improvements": ["..."],
+  "final_summary": "..."
+}}
 """
     res = geo_llm.invoke([HumanMessage(content=prompt)])
-    state["recommendations"] = res.content
+    raw = res.content.strip()
+
+    try:
+        parsed = json.loads(re.sub(r"```json|```", "", raw))
+        state["recommendations"] = {
+            "structured": parsed,
+            "raw_text": raw
+        }
+    except Exception:
+        state["recommendations"] = {
+            "structured": None,
+            "raw_text": raw
+        }
+
     return state
 
 @safe_node
@@ -385,24 +410,15 @@ def node_generate_webpage(state: GEOState):
     prompt = f"""
 You are a Generative Engine Optimization (GEO) content architect.
 
-INPUTS
-------
 AI Answer:
 {state.get('ai_answer','')[:2000]}
 
 GEO Recommendations:
-{state.get('recommendations','')[:3000]}
+{json.dumps(state.get('recommendations',{}), indent=2)[:3000]}
 
-TASK
-----
-Generate a COMPLETE, STRUCTURED webpage draft that:
-- Follows the recommendations exactly
-- Uses clear H1/H2/H3 hierarchy
-- Includes summaries, definitions, and FAQs
-- Is optimized for AI extraction (not keyword stuffing)
+Generate a COMPLETE, STRUCTURED webpage.
 
-OUTPUT FORMAT (STRICT JSON)
----------------------------
+Return STRICT JSON in this format:
 {{
   "page_title": "...",
   "meta_description": "...",
@@ -412,15 +428,12 @@ OUTPUT FORMAT (STRICT JSON)
       "heading": "H2 ...",
       "summary": "...",
       "content": "...",
-      "bullets": ["...", "..."],
+      "bullets": ["..."],
       "definition": null
     }}
   ],
   "faq": [
-    {{
-      "question": "...",
-      "answer": "..."
-    }}
+    {{ "question": "...", "answer": "..." }}
   ],
   "internal_linking_suggestions": ["..."],
   "schema_hints": {{
@@ -430,12 +443,16 @@ OUTPUT FORMAT (STRICT JSON)
 }}
 """
     res = geo_llm.invoke([HumanMessage(content=prompt)])
-    text = re.sub(r"```json|```", "", res.content, flags=re.I).strip()
+    raw = res.content.strip()
+
     try:
-        state["generated_page"] = json.loads(text)
+        parsed = json.loads(re.sub(r"```json|```", "", raw))
+        state["generated_page"] = parsed
     except Exception:
-        state["generated_page"] = {"raw_text": text}
+        state["generated_page"] = {"raw_text": raw}
+
     return state
+
 
 # =========================================================
 # Build the GEO Agent Graph
