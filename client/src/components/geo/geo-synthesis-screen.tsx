@@ -34,9 +34,12 @@ import {
   BookOpen,
   AlertTriangle,
   Minus,
-  ArrowRight
+  ArrowRight,
+  Lightbulb,
+  Zap
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { GeoAgentPanel } from "./geo-agent-panel"
 
 /**
  * Type definitions for GEO API responses
@@ -169,6 +172,44 @@ interface GeoMetricsResponse {
 }
 
 /**
+ * Type definitions for GEO Agent (Part 4 - Complete Pipeline)
+ * Calls the Flask /geo-agent endpoint for the full pipeline
+ */
+interface GeneratedWebpageSection {
+  heading: string
+  summary: string
+  content: string
+  bullets?: string[]
+  definition?: string
+}
+
+interface GeneratedWebpage {
+  page_title?: string
+  meta_description?: string
+  executive_summary?: string
+  sections?: GeneratedWebpageSection[]
+  faq?: Array<{
+    question: string
+    answer: string
+  }>
+  internal_linking_suggestions?: string[]
+  schema_hints?: {
+    article?: boolean
+    faq?: boolean
+  }
+  raw_text?: string
+}
+
+interface GeoAgentResponse {
+  query: string
+  ai_answer: string
+  referenced_urls: string[]
+  recommendations: string | object
+  generated_webpage: GeneratedWebpage
+  timestamp?: string
+}
+
+/**
  * GEO Answers Synthesis Screen Component
  * 
  * This component displays a read-only insights screen showing:
@@ -213,9 +254,15 @@ export function GeoSynthesisScreen() {
   const [selectedMetricIndex, setSelectedMetricIndex] = useState<number>(0)
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false)
   const [metricsError, setMetricsError] = useState<string | null>(null)
+
+  // State for GEO Agent (Part 4 - complete pipeline with recommendations)
+  const [agentQuery, setAgentQuery] = useState<string>("")
+  const [agentResult, setAgentResult] = useState<GeoAgentResponse | null>(null)
+  const [isLoadingAgent, setIsLoadingAgent] = useState(false)
+  const [agentError, setAgentError] = useState<string | null>(null)
   
   // Active tab state
-  const [activeTab, setActiveTab] = useState<"ai-answer" | "competitor" | "metrics">("ai-answer")
+  const [activeTab, setActiveTab] = useState<"ai-answer" | "competitor" | "metrics" | "agent">("ai-answer")
 
   /**
    * Fetch available queries (history) on component mount
@@ -410,6 +457,43 @@ export function GeoSynthesisScreen() {
   }
 
   /**
+   * Fetch GEO Agent Results - Complete pipeline with recommendations and generated webpage
+   * This sends query to the agent endpoint which handles all steps and generates recommendations
+   */
+  async function handleFetchAgent(e: React.FormEvent) {
+    e.preventDefault()
+    
+    if (!agentQuery.trim()) return
+    
+    setIsLoadingAgent(true)
+    setAgentError(null)
+    
+    try {
+      const response = await fetch("/api/geo/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          query: agentQuery.trim()
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to fetch GEO agent results")
+      }
+      
+      const data = await response.json()
+      setAgentResult(data)
+      
+    } catch (err) {
+      console.error("[GEO] Error fetching agent results:", err)
+      setAgentError(err instanceof Error ? err.message : "Failed to fetch GEO agent results")
+    } finally {
+      setIsLoadingAgent(false)
+    }
+  }
+
+  /**
    * Get appropriate icon for answer format
    */
   const getFormatIcon = (format: string) => {
@@ -479,6 +563,19 @@ export function GeoSynthesisScreen() {
           <span className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Part 3: GEO Metrics
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("agent")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "agent"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Part 4: GEO Agent
           </span>
         </button>
       </div>
@@ -1468,6 +1565,117 @@ export function GeoSynthesisScreen() {
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-primary" />
                     <span>Preferred content style inferences</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* GEO Agent Tab Content - Part 4: Complete Pipeline with Recommendations */}
+      {activeTab === "agent" && (
+        <>
+          {/* Part 4 Header */}
+          <Alert className="border-primary/20 bg-primary/5">
+            <Sparkles className="h-4 w-4" />
+            <AlertDescription>
+              <span className="font-medium">Part 4: GEO Agent Pipeline</span> - Complete AI-driven analysis with causal reasoning, recommendations, and optimized webpage generation
+            </AlertDescription>
+          </Alert>
+
+          {/* Input Card for Query */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Run GEO Agent Analysis
+              </CardTitle>
+              <CardDescription>
+                Enter a query to run the complete GEO pipeline: AI answer generation, URL extraction, competitor scraping, causal reasoning, and recommendation generation
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleFetchAgent} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Query</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., What is Generative Engine Optimization?"
+                    value={agentQuery}
+                    onChange={(e) => setAgentQuery(e.target.value)}
+                    disabled={isLoadingAgent}
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={isLoadingAgent || !agentQuery.trim()}
+                  className="w-full"
+                >
+                  {isLoadingAgent ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Run Agent Pipeline
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Agent Error State */}
+          {agentError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{agentError}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Agent Loading State */}
+          {isLoadingAgent && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <Skeleton className="h-6 w-48" />
+                  <Skeleton className="h-4 w-72" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-48 w-full" />
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Agent Results - Part 4 Output */}
+          {!isLoadingAgent && agentResult && (
+            <GeoAgentPanel result={agentResult} />
+          )}
+
+          {/* Empty State for Agent Tab */}
+          {!isLoadingAgent && !agentResult && !agentError && (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Sparkles className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">GEO Agent Not Run Yet</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-md mb-4">
+                  Enter a query above to run the complete GEO agent pipeline. This will generate AI answers, extract references, scrape competitors, analyze causally, and generate recommendations.
+                </p>
+                <div className="grid gap-2 text-sm text-muted-foreground max-w-md">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>AI-generated answer with references</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link className="h-4 w-4 text-primary" />
+                    <span>Referenced URLs extraction</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="h-4 w-4 text-primary" />
+                    <span>Causal reasoning and recommendations</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span>Optimized webpage draft generation</span>
                   </div>
                 </div>
               </CardContent>
