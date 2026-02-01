@@ -9,14 +9,11 @@ from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from collections import Counter
-from sklearn.cluster import KMeans
 from keybert import KeyBERT
-import math
 from langgraph.graph import StateGraph
 from langchain_core.messages import HumanMessage
-
 from langchain_groq import ChatGroq
-
+from typing import TypedDict, List, Optional, Any
 # --------------------
 # Initialization
 # --------------------
@@ -40,10 +37,31 @@ STOPWORDS = set([
 semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
 kw_model = KeyBERT()
 
-# =========================================================
-# EXISTING FUNCTIONALITY
-# =========================================================
+geo_llm = ChatGroq(
+    api_key=os.environ.get("GROQ_API_KEY"),
+    model="llama-3.1-8b-instant",
+    temperature=0.2
+)
 
+# --------------------
+# Helper: safe node wrapper
+# --------------------
+def safe_node(fn):
+    def wrapper(state):
+        try:
+            return fn(state)
+        except KeyError as e:
+            key = e.args[0]
+            state[key] = None
+            return state
+        except Exception as e:
+            state["error"] = str(e)
+            return state
+    return wrapper
+
+# =========================================================
+# EXISTING /ask
+# =========================================================
 @app.route('/ask', methods=['POST'])
 def geo_answer_generation():
     data = request.get_json()
@@ -75,9 +93,8 @@ def geo_answer_generation():
         return jsonify({"error": str(e)}), 500
 
 # =========================================================
-# CONTENT SCRAPING & STRUCTURE EXTRACTION
+# Scraping & Structure
 # =========================================================
-
 def firecrawl_scrape(url: str) -> str:
     headers = {"Authorization": f"Bearer {FIRECRAWL_API_KEY}", "Content-Type": "application/json"}
     payload = {"url": url, "formats": ["markdown"], "onlyMainContent": True}
@@ -108,8 +125,6 @@ def extract_structure(markdown: str) -> dict:
         word_count = len(content_text.split())
         total_words += word_count
         has_bullets = bool(re.search(r"^[-*•]\s+", content_text, re.MULTILINE))
-        has_numbers = bool(re.search(r"^\d+\.\s+", content_text, re.MULTILINE))
-        has_definition = bool(re.search(r"\bis defined as\b|\brefers to\b", content_text, re.I))
         if has_bullets:
             bullet_sections += 1
         structured_sections.append({
@@ -117,8 +132,6 @@ def extract_structure(markdown: str) -> dict:
             "level": sec["level"],
             "word_count": word_count,
             "has_bullets": has_bullets,
-            "has_numbers": has_numbers,
-            "has_definition": has_definition,
             "content_snippet": " ".join(content_text.split()[:60])
         })
     metrics = {
@@ -136,7 +149,7 @@ def extract_structure(markdown: str) -> dict:
 def collect_structure():
     data = request.get_json(force=True, silent=True)
     if not data:
-        return jsonify({"error": "Invalid or empty JSON body", "hint": "Send JSON like { \"urls\": \"https://example.com\" }"}), 400
+        return jsonify({"error": "Invalid or empty JSON"}), 400
     urls = data.get("urls")
     if not urls:
         return jsonify({"error": "No URLs provided"}), 400
@@ -153,10 +166,6 @@ def collect_structure():
         except Exception as e:
             results.append({"url": url, "error": str(e)})
     return jsonify({"status": "success", "count": len(results), "results": results}), 200
-
-# =========================================================
-# SEMANTIC / NLP UTILITIES
-# =========================================================
 
 def semantic_score(text_a: str, text_b: str) -> float:
     embeddings = semantic_model.encode([text_a, text_b])
@@ -281,43 +290,68 @@ def geo_evaluate_reused():
         "timestamp": datetime.utcnow().isoformat()
     }), 200
 
+
 # =========================================================
-# BUILDING THE GEO AGENT WITH LANGGRAPH
-
-
-class GEOState(dict):
-    pass
-
+# GEO Agent Nodes
+# =========================================================
+class GEOState(TypedDict, total=False):
+    query: str
+    ai_answer: str
+    urls: List[str]
+    competitors: list
+    causal_analysis: str
+    recommendations: str
+    generated_page: Any
+    error: str
+def node_finalize(state: GEOState):
+    return state
 
 def node_ai_answer(state: GEOState):
-    r = requests.post("http://127.0.0.1:5000/ask", json={"query": state["query"]})
-    state["ai_answer"] = r.json()["raw_answer"]
-    return state
-
-
-def node_extract_refs(state: GEOState):
-    urls = re.findall(r"https?://[^\s,\]]+", state["ai_answer"])
-    state["urls"] = list(set(urls))
-    return state
-
-
-def node_collect_structure(state: GEOState):
-    if not state["urls"]:
-        state["competitors"] = []
+    query = state.get("query")
+    if not query:
+        print("[GEO] No query in state")
+        state["ai_answer"] = "No query provided"
         return state
 
-    r = requests.post("http://127.0.0.1:5000/collect-structure", json={"urls": state["urls"]})
-    state["competitors"] = r.json()["results"]
+    print("[GEO] Sending query to /ask:", query)
+    r = requests.post("http://127.0.0.1:5000/ask", json={"query": query})
+    if r.status_code == 200:
+        state["ai_answer"] = r.json().get("raw_answer", "")
+    else:
+        state["ai_answer"] = ""
+    print("[GEO] Received AI answer:", state["ai_answer"])
+    return state  # <-- Important!
+
+
+
+
+@safe_node
+def node_extract_refs(state: GEOState):
+    state["urls"] = list(set(re.findall(r"https?://[^\s,\]]+", state.get("ai_answer", ""))))
     return state
 
+@safe_node
+def node_collect_structure(state: GEOState):
+    if not state.get("urls"):
+        state["competitors"] = []
+        return state
+    try:
+        r = requests.post("http://127.0.0.1:5000/collect-structure", json={"urls": state["urls"]})
+        r.raise_for_status()
+        state["competitors"] = r.json().get("results", [])
+    except Exception as e:
+        state["competitors"] = []
+        state["error_collect"] = str(e)
+    return state
 
+@safe_node
 def node_causal_reasoning(state: GEOState):
     prompt = f"""
 AI Answer:
-{state["ai_answer"][:3000]}
+{state.get('ai_answer','')[:3000]}
 
 Competitor structures:
-{json.dumps(state["competitors"], indent=2)[:4000]}
+{json.dumps(state.get('competitors',[]), indent=2)[:4000]}
 
 Explain WHY these pages were selected by a generative AI.
 Focus on structure, clarity, sections, bullets, definitions.
@@ -328,11 +362,11 @@ Return JSON.
     state["causal_analysis"] = res.content
     return state
 
-
+@safe_node
 def node_recommendations(state: GEOState):
     prompt = f"""
 Causal Analysis:
-{state["causal_analysis"]}
+{state.get('causal_analysis','')}
 
 What should OUR website add or improve to be reused by AI engines?
 Focus on:
@@ -346,47 +380,137 @@ Return JSON.
     state["recommendations"] = res.content
     return state
 
+@safe_node
+def node_generate_webpage(state: GEOState):
+    prompt = f"""
+You are a Generative Engine Optimization (GEO) content architect.
 
+INPUTS
+------
+AI Answer:
+{state.get('ai_answer','')[:2000]}
+
+GEO Recommendations:
+{state.get('recommendations','')[:3000]}
+
+TASK
+----
+Generate a COMPLETE, STRUCTURED webpage draft that:
+- Follows the recommendations exactly
+- Uses clear H1/H2/H3 hierarchy
+- Includes summaries, definitions, and FAQs
+- Is optimized for AI extraction (not keyword stuffing)
+
+OUTPUT FORMAT (STRICT JSON)
+---------------------------
+{{
+  "page_title": "...",
+  "meta_description": "...",
+  "executive_summary": "...",
+  "sections": [
+    {{
+      "heading": "H2 ...",
+      "summary": "...",
+      "content": "...",
+      "bullets": ["...", "..."],
+      "definition": null
+    }}
+  ],
+  "faq": [
+    {{
+      "question": "...",
+      "answer": "..."
+    }}
+  ],
+  "internal_linking_suggestions": ["..."],
+  "schema_hints": {{
+    "article": true,
+    "faq": true
+  }}
+}}
+"""
+    res = geo_llm.invoke([HumanMessage(content=prompt)])
+    text = re.sub(r"```json|```", "", res.content, flags=re.I).strip()
+    try:
+        state["generated_page"] = json.loads(text)
+    except Exception:
+        state["generated_page"] = {"raw_text": text}
+    return state
+
+# =========================================================
+# Build the GEO Agent Graph
+# =========================================================
 def build_geo_agent():
     g = StateGraph(GEOState)
+
     g.add_node("ai", node_ai_answer)
     g.add_node("refs", node_extract_refs)
     g.add_node("struct", node_collect_structure)
     g.add_node("cause", node_causal_reasoning)
     g.add_node("reco", node_recommendations)
+    g.add_node("generate_page", node_generate_webpage)
+    g.add_node("final", node_finalize)
 
     g.set_entry_point("ai")
+
     g.add_edge("ai", "refs")
     g.add_edge("refs", "struct")
     g.add_edge("struct", "cause")
     g.add_edge("cause", "reco")
+    g.add_edge("reco", "generate_page")
+    g.add_edge("generate_page", "final")
+
+    g.set_finish_point("final")
 
     return g.compile()
+
+
+
 
 
 geo_agent = build_geo_agent()
 
 # =========================================================
-# 🚀 NEW ENDPOINT — /geo-agent
+# New /geo-agent endpoint
 # =========================================================
-
 @app.route("/geo-agent", methods=["POST"])
 def geo_agent_endpoint():
-    data = request.get_json()
+    data = request.get_json(force=True)
     query = data.get("query")
-
     if not query:
         return jsonify({"error": "query required"}), 400
 
-    result = geo_agent.invoke({"query": query+" Give urls of the websites you used to answer."})
+    # Add query to initial state
+    initial_state = {"query": query + " Give references to urls you used to answer."}
+
+    # Debug print
+    print("[GEO] Initial state:", initial_state)
+
+    result = geo_agent.invoke({
+    "query": query + " Give references to urls you used to answer."
+})
+
+
+    if result is None:
+        return jsonify({
+            "query": query,
+            "ai_answer": None,
+            "referenced_urls": [],
+            "recommendations": None,
+            "generated_webpage": None,
+            "error": "GEO agent returned None"
+        }), 500
 
     return jsonify({
         "query": query,
-        "ai_answer": result["ai_answer"],
-        "referenced_urls": result["urls"],
-        "causal_analysis": result["causal_analysis"],
-        "recommendations": result["recommendations"]
+        "ai_answer": result.get("ai_answer"),
+        "referenced_urls": result.get("urls"),
+        "recommendations": result.get("recommendations"),
+        "generated_webpage": result.get("generated_page")
     }), 200
+
+
+
 
 # =========================================================
 # RUN SERVER
