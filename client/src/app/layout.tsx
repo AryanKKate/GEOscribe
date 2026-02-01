@@ -19,7 +19,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SaaS MVP - Build and Scale Your Product",
+  title: "GeoScribe - Build and Scale Your Product",
   description:
     "The complete platform to build and scale your SaaS product with modern tools and best practices.",
   generator: "v0.app",

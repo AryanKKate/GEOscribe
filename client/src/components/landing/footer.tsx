@@ -90,7 +90,7 @@ export function Footer() {
 				<div className="flex mt-5 flex-col">
 					<div className="flex mb-3  gap-2 items-center">
 						<Image className="w-8 h-8 rounded-full bg-gray-400 " src="/" alt="company-logo" width={32} height={32} />
-						<h3 className="text-lg font-semibold">SaaS MVP</h3>
+						<h3 className="text-lg font-semibold">GeoScribe</h3>
 					</div>
 					<p className="text-sm text-muted-foreground">
 						The complete platform to build and scale your SaaS product.
@@ -100,7 +100,7 @@ export function Footer() {
 
 				<div className="mt-12 pt-8 border-t border-border/40 text-center text-sm text-muted-foreground">
 					<p>
-						&copy; {new Date().getFullYear()} SaaS MVP. All rights
+						&copy; {new Date().getFullYear()} GeoScribe. All rights
 						reserved.
 					</p>
 				</div>
