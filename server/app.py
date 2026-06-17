@@ -34,8 +34,76 @@ STOPWORDS = set([
     "a", "an", "by", "as", "are", "that", "this"
 ])
 
-semantic_model = SentenceTransformer("all-MiniLM-L6-v2")
-kw_model = KeyBERT()
+
+def generate_ai_answer(query: str):
+    completion = groq_client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[
+            {
+                "role": "user",
+                "content": query +
+                " Generate in depth-ans, refer any sources if needed."
+            }
+        ]
+    )
+
+    return completion.choices[0].message.content
+
+
+def collect_structure_internal(urls):
+    if isinstance(urls, str):
+        urls = [urls]
+
+    results = []
+
+    for url in urls:
+        try:
+            markdown = firecrawl_scrape(url)
+
+            content_id = (
+                f"{url}_{int(datetime.utcnow().timestamp())}"
+            )
+
+            SCRAPED_CONTENT_CACHE[content_id] = markdown
+
+            structure = extract_structure(markdown)
+
+            results.append({
+                "url": url,
+                "content_id": content_id,
+                "structure_fingerprint": structure,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+
+        except Exception as e:
+            results.append({
+                "url": url,
+                "error": str(e)
+            })
+
+    return results
+
+
+semantic_model = None
+kw_model = None
+
+def get_semantic_model():
+    global semantic_model
+
+    if semantic_model is None:
+        semantic_model = SentenceTransformer(
+            "all-MiniLM-L6-v2"
+        )
+
+    return semantic_model
+
+def get_kw_model():
+    global kw_model
+
+    if kw_model is None:
+        kw_model = KeyBERT()
+
+    return kw_model
 
 geo_llm = ChatGroq(
     api_key=os.environ.get("GROQ_API_KEY"),
@@ -168,7 +236,8 @@ def collect_structure():
     return jsonify({"status": "success", "count": len(results), "results": results}), 200
 
 def semantic_score(text_a: str, text_b: str) -> float:
-    embeddings = semantic_model.encode([text_a, text_b])
+    model = get_semantic_model()
+    embeddings = model.encode([text_a, text_b])
     a, b = embeddings[0], embeddings[1]
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
@@ -308,19 +377,19 @@ def node_finalize(state: GEOState):
 
 def node_ai_answer(state: GEOState):
     query = state.get("query")
+
     if not query:
-        print("[GEO] No query in state")
         state["ai_answer"] = "No query provided"
         return state
 
-    print("[GEO] Sending query to /ask:", query)
-    r = requests.post("http://127.0.0.1:5000/ask", json={"query": query})
-    if r.status_code == 200:
-        state["ai_answer"] = r.json().get("raw_answer", "")
-    else:
+    try:
+        state["ai_answer"] = generate_ai_answer(query)
+
+    except Exception as e:
         state["ai_answer"] = ""
-    print("[GEO] Received AI answer:", state["ai_answer"])
-    return state  # <-- Important!
+        state["error"] = str(e)
+
+    return state
 
 
 
@@ -331,18 +400,20 @@ def node_extract_refs(state: GEOState):
     return state
 
 @safe_node
+
 def node_collect_structure(state: GEOState):
+
     if not state.get("urls"):
         state["competitors"] = []
         return state
-    try:
-        r = requests.post("http://127.0.0.1:5000/collect-structure", json={"urls": state["urls"]})
-        r.raise_for_status()
-        state["competitors"] = r.json().get("results", [])
-    except Exception as e:
-        state["competitors"] = []
-        state["error_collect"] = str(e)
+
+    state["competitors"] = collect_structure_internal(
+        state["urls"]
+    )
+
     return state
+
+
 @safe_node
 def node_causal_reasoning(state: GEOState):
     prompt = f"""
@@ -404,6 +475,12 @@ Return STRICT JSON in this format:
         }
 
     return state
+
+@app.route("/health")
+def health():
+    return jsonify({
+        "status": "healthy"
+    }), 200
 
 @safe_node
 def node_generate_webpage(state: GEOState):
@@ -532,5 +609,12 @@ def geo_agent_endpoint():
 # =========================================================
 # RUN SERVER
 # =========================================================
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    port = int(
+        os.environ.get("PORT", 5000)
+    )
+
+    app.run(
+        host="0.0.0.0",
+        port=port
+    )
