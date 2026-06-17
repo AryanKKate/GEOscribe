@@ -9,7 +9,7 @@ langchain==0.1.20
 langchain-groq==0.1.5
 langgraph==0.0.48
 
-sentence-transformers==2.2.2
+sentence-transformers==2.6.0
 numpy==1.26.4
 scikit-learn==1.4.2
 keybert==0.8.5
